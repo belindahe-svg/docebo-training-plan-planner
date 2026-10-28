@@ -8,7 +8,7 @@ keep_vars = true
 # The planner UI is bundled from src/app.html.
 [[rules]]
 type = "Text"
-globs = ["**/*.html"]
+globs = ["**/*.html", "**/*.txt"]
 fallthrough = false
 
 [[d1_databases]]

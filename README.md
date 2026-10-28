@@ -55,11 +55,19 @@ In a milestone:
 
 API calls used (confirmed from the atalent-025-elevate02 API definition): `GET /audiences/v1/audience`, `GET /audiences/v1/audience/{uuid}/users`, `GET /manage/v1/orgchart`, `GET /manage/v1/orgchart/{id}/users`, `POST /learn/v1/courses`, `POST /course/v1/courses/{id}/sessions`, `POST /course/v1/sessions/{id}/events`, `POST /learn/v1/enrollment/batch`.
 
-## 5. Nightly sync
+## 5. Excel import and export
+
+- **Import Excel** (plan header, or the empty-state screen): download the template, fill the **Programs** sheet (annual objective and targets) and the **Milestones** sheet (one row per program per month), then upload. Headers and values can be English or Chinese; months can be `1` to `12`, `Jan` or `1月`; Audience is the exact name of a Docebo audience or branch (optional).
+- The file is read in the browser and previewed first. Rows with problems (e.g. an invalid month) block the import; warnings (e.g. monthly rows not adding up to the annual target) do not.
+- Import into a new plan, or into the current plan: programs with the same name and milestones with the same program, month and title are updated, everything else is added. Nothing is deleted.
+- **Export Excel** writes the plan in the same format plus read-only actual columns, so a plan can be edited in Excel and re-imported.
+- The Excel library (SheetJS Community Edition 0.18.5, Apache-2.0) is served from the Worker at `/vendor/xlsx.js`, so no third-party CDN is needed.
+
+## 6. Nightly sync
 
 `wrangler.toml` sets a cron at 18:00 UTC (02:00 Singapore) that refreshes actuals for every plan, stalest links first. The **Sync from Docebo** button does the same on demand.
 
-## 6. Going live with real Docebo data
+## 7. Going live with real Docebo data
 
 1. In Docebo, create a few ILT courses and sessions that match the plan (e.g. an EX750 launch workshop course with sessions in different months, a technician certification course, an e-learning EHS course). Enrol a few test users and mark attendance on a past event.
 2. In `wrangler.toml` set `DEMO_MODE = "0"` and commit. Cloudflare redeploys on its own.
@@ -94,7 +102,7 @@ Completions are read from `enrollment_status = completed` and `enrollment_comple
 
 ---
 
-## 7. Suggested POC demo flow
+## 8. Suggested POC demo flow
 
 1. **Overview**: annual targets fully broken down (100%), YTD delivered vs planned, plan vs actual by month, progress by program. Switch to 中文.
 2. **Monthly breakdown**: each program's annual objective spread across months, colour-coded status per milestone. Filter by region (e.g. Middle East) to show dealer-market view.

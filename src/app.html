@@ -216,6 +216,12 @@ main { padding: 20px; max-width: 1480px; margin: 0 auto; }
 .elist { margin: 8px 0 12px; padding-left: 18px; }
 .elist li { margin-bottom: 6px; }
 .note { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+.modal.wide { width: min(820px, calc(100% - 32px)); }
+.filebox { display: flex; flex-direction: column; gap: 6px; border: 2px dashed var(--line-2); border-radius: 10px; padding: 16px; font-size: 13px; color: var(--ink-2); background: var(--surface-2); margin-bottom: 12px; }
+.imp-err { margin-top: 10px; color: var(--crit-ink); background: var(--crit-soft); border-radius: 8px; padding: 8px 12px; }
+.imp-warn { margin-top: 10px; color: var(--warn-ink); background: var(--warn-soft); border-radius: 8px; padding: 8px 12px; }
+.imp-err ul, .imp-warn ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+.ptable.imp th, .ptable.imp td { padding: 6px 8px; font-size: 12.5px; }
 .empty { text-align: center; padding: 60px 20px; }
 .empty h2 { margin: 0 0 6px; font-size: 20px; }
 .empty p { color: var(--ink-2); max-width: 520px; margin: 0 auto 18px; }
@@ -300,6 +306,13 @@ const T = {
     enrolDone: 'Enrolled {n} users ({a} already enrolled)', enrolFail: '{f} could not be enrolled: {e}', createdBadge: 'created here',
     f_noaud: 'Upcoming milestones without an audience', f_noaud_d: 'Due {m}. Nobody is assigned to receive this training yet.',
     saveFirst: 'Save the milestone first.',
+    importX: 'Import Excel', exportX: 'Export Excel', importT: 'Import a training plan from Excel', template: 'Download template',
+    importIntro: 'Use the template: a Programs sheet (annual objectives and targets) and a Milestones sheet (one row per program per month). Headers can be in English or Chinese.',
+    chooseFile: 'Choose an Excel file (.xlsx, .xls or .csv)', parsing: 'Reading the file...', found: 'Found {p} programs and {m} milestones.',
+    errorsT: 'Fix these rows first', warningsT: 'Check these', importInto: 'Import into', newPlanOpt: 'A new plan', curPlanOpt: 'This plan: {n}',
+    mergeHint: 'Programs with the same name are updated; milestones with the same program, month and title are updated; everything else is added. Nothing is deleted.',
+    importGo: 'Import', importDone: 'Imported: {pc} programs added, {pu} updated, {mc} milestones added, {mu} updated.', moreRows: '... and {n} more',
+    importFromX: 'Import from Excel', previewT: 'Preview',
     saved: 'Saved', linkedOk: 'Linked and synced', removed: 'Removed', deleted: 'Deleted',
     syncDone: 'Synced {n} items', syncPartial: 'Synced {n} items, {p} left. Sync again to continue.',
     blockedH: 'Open this page from Docebo', blocked_reason: 'This planner signs you in through the Docebo Iframe widget. Open it from its Docebo page.',
@@ -362,6 +375,13 @@ const T = {
     enrolDone: '已报名 {n} 人（{a} 人此前已报名）', enrolFail: '{f} 人报名失败：{e}', createdBadge: '本应用创建',
     f_noaud: '尚未指定培训对象的近期里程碑', f_noaud_d: '计划于{m}。尚未指定接受此培训的人员。',
     saveFirst: '请先保存里程碑。',
+    importX: '导入Excel', exportX: '导出Excel', importT: '从Excel导入培训计划', template: '下载模板',
+    importIntro: '请使用模板：“项目”工作表（年度目标与指标）和“里程碑”工作表（每个项目每月一行）。表头可使用中文或英文。',
+    chooseFile: '选择Excel文件（.xlsx、.xls或.csv）', parsing: '正在读取文件...', found: '共识别 {p} 个项目、{m} 个里程碑。',
+    errorsT: '请先修正以下行', warningsT: '请注意', importInto: '导入到', newPlanOpt: '新计划', curPlanOpt: '当前计划：{n}',
+    mergeHint: '同名项目将被更新；项目、月份与名称相同的里程碑将被更新；其余内容将新增。不会删除任何内容。',
+    importGo: '导入', importDone: '已导入：新增 {pc} 个项目，更新 {pu} 个；新增 {mc} 个里程碑，更新 {mu} 个。', moreRows: '... 另有 {n} 行',
+    importFromX: '从Excel导入', previewT: '预览',
     saved: '已保存', linkedOk: '已关联并同步', removed: '已移除', deleted: '已删除',
     syncDone: '已同步 {n} 项', syncPartial: '已同步 {n} 项，剩余 {p} 项，请再次同步。',
     blockedH: '请从Docebo中打开此页面', blocked_reason: '本应用通过Docebo iFrame组件识别登录身份，请从对应的Docebo页面打开。',
@@ -565,12 +585,13 @@ function header() {
 function emptyView() {
   return `<div class="card empty"><h2>${esc(t('emptyH'))}</h2><p>${esc(t('emptyP'))}</p>
     <button class="btn primary" data-act="seed">${esc(t('seed'))}</button>
-    <button class="btn" data-act="new-plan">${esc(t('blank'))}</button></div>`;
+    <button class="btn" data-act="new-plan">${esc(t('blank'))}</button>
+    <button class="btn" data-act="import-open">⤒ ${esc(t('importFromX'))}</button></div>`;
 }
 
 function planHead(extra) {
   const p = S.data.plan;
-  return `<div class="plan-head"><h1>${esc(loc(p, 'name'))}</h1><span class="year">FY${p.year}</span><button class="btn ghost small" data-act="edit-plan">${esc(t('edit'))}</button><div class="spacer"></div>${extra || ''}<button class="btn" data-act="export">⤓ ${esc(t('export'))}</button></div>`;
+  return `<div class="plan-head"><h1>${esc(loc(p, 'name'))}</h1><span class="year">FY${p.year}</span><button class="btn ghost small" data-act="edit-plan">${esc(t('edit'))}</button><div class="spacer"></div>${extra || ''}<button class="btn" data-act="import-open">⤒ ${esc(t('importX'))}</button><button class="btn" data-act="export-x">⤓ ${esc(t('exportX'))}</button></div>`;
 }
 
 function overviewView() {
@@ -950,8 +971,200 @@ function pickerView() {
 }
 
 /* --------------------------- modal: program / plan --------------------------- */
+/* --------------------------- Excel import / export --------------------------- */
+const PROG_COLS = [['name', 'Program', '项目'], ['name_zh', 'Program (Chinese)', '项目（中文）'], ['objective', 'Annual objective', '年度目标'], ['objective_zh', 'Annual objective (Chinese)', '年度目标（中文）'], ['target_sessions', 'Target sessions', '目标场次'], ['target_trainees', 'Target trainees', '目标人数'], ['owner', 'Owner', '负责人']];
+const MS_COLS = [['program', 'Program', '项目'], ['month', 'Month', '月份'], ['title', 'Milestone', '里程碑', ['Title', '名称', '培训名称']], ['title_zh', 'Milestone (Chinese)', '里程碑（中文）'], ['planned_sessions', 'Planned sessions', '计划场次', ['Sessions', '场次']], ['planned_trainees', 'Planned trainees', '计划人数', ['Trainees', '人数']], ['region', 'Region / dealer market', '区域 / 经销商市场', ['Region', '区域', 'Dealer market', '经销商市场']], ['delivery', 'Delivery format', '交付形式', ['Delivery', '形式']], ['audience', 'Audience (Docebo audience or branch name)', '培训对象（Docebo受众或分支名称）', ['Audience', '培训对象', 'Group', 'Branch', '受众', '分支']], ['notes', 'Notes', '备注']];
+const ACT_COLS = [['Scheduled sessions', '已排期场次'], ['Delivered sessions', '已交付场次'], ['Actual trainees', '实际人数'], ['Linked Docebo items', '已关联Docebo内容']];
+const head = (c) => `${c[1]} / ${c[2]}`;
+const norm = (x) => String(x || '').toLowerCase().replace(/[\s_\-()（）/、:：*]/g, '');
+
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = '/vendor/xlsx.js'; sc.onload = res; sc.onerror = () => rej(new Error('Could not load the Excel library.')); document.head.appendChild(sc); });
+}
+
+function colMap(headerRow, cols) {
+  const map = {};
+  headerRow.forEach((h, i) => {
+    const n = norm(h);
+    const c = cols.find((c) => [c[1], c[2], head(c), ...(c[3] || [])].some((x) => norm(x) === n));
+    if (c && !(c[0] in map)) map[c[0]] = i;
+  });
+  return map;
+}
+
+const MONTHS_EN = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+function parseMonth(v) {
+  if (v instanceof Date) return v.getMonth() + 1;
+  const s = String(v ?? '').trim().toLowerCase();
+  if (/^\d{1,2}(\.0+)?$/.test(s)) { const n = parseInt(s, 10); return n >= 1 && n <= 12 ? n : null; }
+  let m = s.match(/^(\d{1,2})\s*月$/); if (m) { const n = +m[1]; return n >= 1 && n <= 12 ? n : null; }
+  m = s.match(/^\d{4}[-/.](\d{1,2})/); if (m) { const n = +m[1]; return n >= 1 && n <= 12 ? n : null; }
+  const i = MONTHS_EN.indexOf(s.slice(0, 3)); return i >= 0 ? i + 1 : null;
+}
+const REVERSE_VALUE = {}; Object.entries(VALUE_MAP).forEach(([en, zh]) => { REVERSE_VALUE[zh] = en; });
+const toEn = (v) => { const s = String(v ?? '').trim(); return REVERSE_VALUE[s] || T.en.regions.find((r) => r.toLowerCase() === s.toLowerCase()) || T.en.deliveries.find((r) => r.toLowerCase() === s.toLowerCase()) || s; };
+const toInt = (v) => { const n = parseInt(String(v ?? '').replace(/[, ]/g, ''), 10); return Number.isFinite(n) && n >= 0 ? n : 0; };
+
+function findSheet(wb, names, cols, required) {
+  const byName = wb.SheetNames.find((n) => names.some((x) => norm(n) === norm(x)));
+  if (byName) return wb.Sheets[byName];
+  for (const n of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, blankrows: false });
+    const m = colMap(rows[0] || [], cols);
+    if (required.every((k) => k in m)) return wb.Sheets[n];
+  }
+  return null;
+}
+
+function parseWorkbook(wb, fileName) {
+  const out = { plan: {}, programs: [], milestones: [], errors: [], warnings: [] };
+  const planSheet = wb.SheetNames.find((n) => ['plan', '计划'].includes(norm(n)));
+  if (planSheet) {
+    for (const r of XLSX.utils.sheet_to_json(wb.Sheets[planSheet], { header: 1, blankrows: false })) {
+      const k = norm(r[0]), v = r[1];
+      if (['planname', '计划名称', 'planname计划名称'].includes(k)) out.plan.name = String(v || '');
+      if (['plannamechinese', '计划名称中文', 'plannamechinese计划名称中文'].includes(k)) out.plan.name_zh = String(v || '');
+      if (['year', '年度', 'year年度'].includes(k)) out.plan.year = toInt(v) || undefined;
+    }
+  }
+  if (!out.plan.name) out.plan.name = String(fileName || '').replace(/\.(xlsx|xls|csv)$/i, '');
+  const ps = findSheet(wb, ['Programs', '项目'], PROG_COLS, ['name', 'target_trainees']);
+  if (ps) {
+    const rows = XLSX.utils.sheet_to_json(ps, { header: 1, blankrows: false, defval: '' });
+    const m = colMap(rows[0] || [], PROG_COLS);
+    if (!('name' in m)) out.errors.push('Programs: no "Program / 项目" column.');
+    rows.slice(1).forEach((r, i) => {
+      const name = String(r[m.name] ?? '').trim();
+      if (!name) return;
+      const o = { name };
+      for (const [k] of PROG_COLS) if (k !== 'name' && k in m) o[k] = /target/.test(k) ? toInt(r[m[k]]) : String(r[m[k]] ?? '').trim();
+      out.programs.push(o);
+    });
+  }
+  const ms = findSheet(wb, ['Milestones', '里程碑'], MS_COLS, ['program', 'month']);
+  if (!ms) out.errors.push('No Milestones sheet found (needs "Program / 项目" and "Month / 月份" columns).');
+  else {
+    const rows = XLSX.utils.sheet_to_json(ms, { header: 1, blankrows: false, defval: '' });
+    const m = colMap(rows[0] || [], MS_COLS);
+    rows.slice(1).forEach((r, i) => {
+      const rowNo = i + 2;
+      const program = String(r[m.program] ?? '').trim();
+      if (!program && !String(r[m.title] ?? '').trim()) return;
+      const month = parseMonth(r[m.month]);
+      if (!program) { out.errors.push(`Milestones row ${rowNo}: program is empty.`); return; }
+      if (!month) { out.errors.push(`Milestones row ${rowNo}: "${r[m.month]}" is not a month (use 1 to 12, Jan, or 1月).`); return; }
+      const o = { program, month, title: String(r[m.title] ?? '').trim() || program };
+      for (const [k] of MS_COLS) {
+        if (['program', 'month', 'title'].includes(k) || !(k in m)) continue;
+        const v = r[m[k]];
+        o[k] = /planned/.test(k) ? toInt(v) : (k === 'region' || k === 'delivery') ? toEn(v) : String(v ?? '').trim();
+      }
+      out.milestones.push(o);
+    });
+    const known = new Set([...out.programs.map((p) => p.name.toLowerCase()), ...(S.data && S.data.programs || []).map((p) => p.name.toLowerCase())]);
+    const missing = [...new Set(out.milestones.map((x) => x.program).filter((p) => !known.has(p.toLowerCase())))];
+    if (missing.length) out.warnings.push(`Not on the Programs sheet (they will be created without annual targets): ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', ...' : ''}`);
+  }
+  for (const p of out.programs) {
+    const s = out.milestones.filter((x) => x.program.toLowerCase() === p.name.toLowerCase());
+    const ss = s.reduce((a, x) => a + (x.planned_sessions || 0), 0), st = s.reduce((a, x) => a + (x.planned_trainees || 0), 0);
+    if ((p.target_sessions || 0) !== ss || (p.target_trainees || 0) !== st) out.warnings.push(`${p.name}: monthly rows add up to ${ss} sessions / ${st} trainees; annual target is ${p.target_sessions || 0} / ${p.target_trainees || 0}.`);
+  }
+  if (!out.programs.length && !out.milestones.length && !out.errors.length) out.errors.push('The file has no programs or milestones.');
+  return out;
+}
+
+function sheetFrom(rows, widths) {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = widths.map((w) => ({ wch: w }));
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+  return ws;
+}
+
+function workbookFor(plan, programs, milestones, withActuals) {
+  const wb = XLSX.utils.book_new();
+  const prog = new Map(programs.map((p) => [p.id, p]));
+  XLSX.utils.book_append_sheet(wb, sheetFrom([
+    ['How to use / 使用说明'],
+    ['1. Programs sheet: one row per program with its annual objective and targets. / 项目：每个项目一行，填写年度目标与指标。'],
+    ['2. Milestones sheet: one row per program per month. Month can be 1 to 12, Jan, or 1月. / 里程碑：每个项目每月一行，月份可填1至12、Jan或1月。'],
+    ['3. Region and Delivery format accept the planner values in English or Chinese. / 区域与交付形式可用中文或英文填写。'],
+    ['4. Audience: the exact name of a Docebo audience or branch (optional). / 培训对象：Docebo受众或分支的完整名称（可选）。'],
+    ['5. Import updates rows with the same program (and month + milestone title); it never deletes. / 导入会更新同名项目及相同月份与名称的里程碑，不会删除任何内容。'],
+    ['Regions / 区域: ' + T.en.regions.join(', ')], ['Delivery formats / 交付形式: ' + T.en.deliveries.join(', ')],
+  ], [120]), 'Instructions');
+  XLSX.utils.book_append_sheet(wb, sheetFrom([['Plan name / 计划名称', plan.name || ''], ['Plan name (Chinese) / 计划名称（中文）', plan.name_zh || ''], ['Year / 年度', plan.year || '']], [36, 50]), 'Plan');
+  XLSX.utils.book_append_sheet(wb, sheetFrom([PROG_COLS.map(head), ...programs.map((p) => PROG_COLS.map(([k]) => p[k] ?? ''))], [40, 26, 60, 40, 14, 14, 16]), 'Programs');
+  const msHead = MS_COLS.map(head).concat(withActuals ? ACT_COLS.map((c) => `${c[0]} / ${c[1]} (read only)`) : []);
+  const msRows = milestones.map((m) => {
+    const row = MS_COLS.map(([k]) => k === 'program' ? (prog.get(m.program_id) || {}).name || m.program || '' : k === 'audience' ? (m.audience_name || m.audience || '') : (m[k] ?? ''));
+    if (withActuals) { const a = msActuals(m); row.push(a.sched, a.deliv, a.trainees, a.links.map((l) => l.name).join(' | ')); }
+    return row;
+  });
+  XLSX.utils.book_append_sheet(wb, sheetFrom([msHead, ...msRows], [36, 8, 36, 24, 12, 12, 18, 22, 30, 30, 12, 12, 12, 40]), 'Milestones');
+  return wb;
+}
+
+function downloadTemplate() {
+  const y = NOW.getFullYear() + (NOW.getMonth() >= 9 ? 1 : 0);
+  const programs = [
+    { id: 'a', name: 'New Model Launch: EX750 Hydraulic Excavator', name_zh: '新机型上市：EX750液压挖掘机', objective: 'Every dealer sales and service team certified on the EX750.', objective_zh: '所有经销商销售与服务团队完成EX750认证。', target_sessions: 4, target_trainees: 80, owner: '' },
+    { id: 'b', name: 'Service Technician Certification (L1 to L3)', name_zh: '服务技师认证（L1至L3）', objective: 'Grow certified technicians across the dealer network.', objective_zh: '提升经销商网络认证技师数量。', target_sessions: 3, target_trainees: 45, owner: '' },
+  ];
+  const milestones = [
+    { program_id: 'a', month: 3, title: 'EX750 launch training', title_zh: 'EX750上市培训', planned_sessions: 2, planned_trainees: 40, region: 'China', delivery: 'Hands-on workshop', audience: '', notes: '' },
+    { program_id: 'a', month: 4, title: 'EX750 launch training', title_zh: 'EX750上市培训', planned_sessions: 2, planned_trainees: 40, region: 'Southeast Asia', delivery: 'Hands-on workshop', audience: '', notes: '' },
+    { program_id: 'b', month: 2, title: 'Hydraulics workshop', title_zh: '液压实操工作坊', planned_sessions: 1, planned_trainees: 15, region: 'China', delivery: 'Hands-on workshop', audience: '', notes: '' },
+    { program_id: 'b', month: 6, title: 'Electrical diagnostics workshop', title_zh: '电气诊断实操工作坊', planned_sessions: 2, planned_trainees: 30, region: 'Middle East', delivery: 'Hands-on workshop', audience: '', notes: '' },
+  ];
+  XLSX.writeFile(workbookFor({ name: `Training Plan ${y}`, name_zh: `${y}年培训计划`, year: y }, programs, milestones, false), 'training-plan-template.xlsx');
+}
+
+function importView() {
+  const im = S.modal, d = S.data;
+  let body = `<p class="sync-meta" style="white-space:normal;margin-top:0">${esc(t('importIntro'))}</p>
+    <div class="row-btns" style="margin-bottom:12px"><button class="btn small" data-act="import-template">⤓ ${esc(t('template'))}</button></div>
+    <label class="filebox">${esc(t('chooseFile'))}<input type="file" id="importFile" accept=".xlsx,.xls,.csv"></label>`;
+  if (im.parsing) body += `<p class="sync-meta"><span class="spin"></span> ${esc(t('parsing'))}</p>`;
+  const r = im.result;
+  if (r) {
+    body += `<div class="panel"><div class="panel-h">${esc(t('previewT'))}: ${esc(im.fileName)}</div><div>${esc(t('found', { p: r.programs.length, m: r.milestones.length }))}</div>`;
+    if (r.errors.length) body += `<div class="imp-err"><b>✕ ${esc(t('errorsT'))}</b><ul>${r.errors.slice(0, 8).map((e) => `<li>${esc(e)}</li>`).join('')}${r.errors.length > 8 ? `<li>${esc(t('moreRows', { n: r.errors.length - 8 }))}</li>` : ''}</ul></div>`;
+    if (r.warnings.length) body += `<div class="imp-warn"><b>▲ ${esc(t('warningsT'))}</b><ul>${r.warnings.slice(0, 8).map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>`;
+    if (r.milestones.length) body += `<div style="overflow-x:auto;margin-top:8px"><table class="ptable imp"><thead><tr><th>${esc(t('program'))}</th><th>${esc(t('month'))}</th><th>${esc(t('title'))}</th><th class="num">${esc(t('sessions'))}</th><th class="num">${esc(t('trainees'))}</th><th>${esc(t('region'))}</th></tr></thead><tbody>${r.milestones.slice(0, 8).map((m) => `<tr><td>${esc(m.program)}</td><td>${esc(t('months')[m.month - 1])}</td><td>${esc(m.title)}</td><td class="num">${m.planned_sessions || 0}</td><td class="num">${m.planned_trainees || 0}</td><td>${esc(val(m.region))}</td></tr>`).join('')}</tbody></table>${r.milestones.length > 8 ? `<div class="sync-meta">${esc(t('moreRows', { n: r.milestones.length - 8 }))}</div>` : ''}</div>`;
+    body += `</div>`;
+    if (!r.errors.length) {
+      const np = im.newPlan;
+      body += `<div class="sub-h"><h4>${esc(t('importInto'))}</h4></div>
+        <div class="seg" role="group" style="margin-bottom:10px"><button data-act="import-target" data-v="new" class="${im.target === 'new' ? 'on' : ''}">${esc(t('newPlanOpt'))}</button>${d.plan ? `<button data-act="import-target" data-v="cur" class="${im.target === 'cur' ? 'on' : ''}">${esc(t('curPlanOpt', { n: loc(d.plan, 'name') }))}</button>` : ''}</div>
+        ${im.target === 'new' ? `<div class="form"><label class="full">${esc(t('planName'))}<input type="text" data-np="name" value="${esc(np.name)}"></label><label class="full">${esc(t('planNameZh'))}<input type="text" data-np="name_zh" value="${esc(np.name_zh || '')}"></label><label>${esc(t('year'))}<input type="number" data-np="year" value="${esc(np.year)}"></label></div>` : `<p class="sync-meta" style="white-space:normal">${esc(t('mergeHint'))}</p>`}`;
+    }
+  }
+  return `<div class="scrim" data-act="close"></div><div class="modal wide" role="dialog" aria-modal="true">
+    <div class="drawer-head"><h2 style="flex:1">${esc(t('importT'))}</h2><button class="btn ghost small" data-act="close">✕</button></div>
+    <div class="drawer-body">${body}</div>
+    <div class="drawer-foot"><button class="btn primary" data-act="import-go" ${!r || r.errors.length || S.busy ? 'disabled' : ''}>${esc(t('importGo'))}</button><button class="btn" data-act="close">${esc(t('cancel'))}</button></div></div>`;
+}
+
+async function readImportFile(file) {
+  S.modal = { ...S.modal, parsing: true, result: null, fileName: file.name }; render();
+  try {
+    await loadXlsx();
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const result = parseWorkbook(wb, file.name);
+    const y = result.plan.year || (NOW.getFullYear() + (NOW.getMonth() >= 9 ? 1 : 0));
+    S.modal = { ...S.modal, parsing: false, result, newPlan: { name: result.plan.name || '', name_zh: result.plan.name_zh || '', year: y }, target: S.data.plan ? S.modal.target || 'cur' : 'new' };
+  } catch (e) {
+    S.modal = { ...S.modal, parsing: false, result: null }; toast(e.message, true);
+  }
+  render();
+}
+
 function modalView() {
   if (!S.modal) return '';
+  if (S.modal.kind === 'import') return importView();
   if (S.modal.kind === 'plan') {
     const p = S.modal.plan;
     return `<div class="scrim" data-act="close"></div><div class="modal" role="dialog" aria-modal="true">
@@ -987,6 +1200,8 @@ function formData(id) {
 
 /* --------------------------- events --------------------------- */
 function bindDrawer() {
+  const fi = document.getElementById('importFile');
+  if (fi) fi.addEventListener('change', () => { if (fi.files && fi.files[0]) readImportFile(fi.files[0]); });
   const af = document.getElementById('audForm');
   if (af) af.addEventListener('submit', (e) => { e.preventDefault(); searchAudiences(new FormData(af).get('q')); });
   const cf = document.getElementById('crForm');
@@ -1023,6 +1238,7 @@ async function searchIlt(q) {
 
 document.addEventListener('input', (e) => {
   const el = e.target;
+  if (el.dataset.np && S.modal && S.modal.newPlan) { S.modal.newPlan[el.dataset.np] = el.value; return; }
   if (!S.create) return;
   if (el.dataset.c) S.create[el.dataset.c] = el.value;
   else if (el.dataset.row != null && el.dataset.f) {
@@ -1082,10 +1298,27 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'del-plan': if (!confirm(t('delPlanQ'))) return; await withBusy(async () => { await call('DELETE', '/plans/' + d.plan.id); S.modal = null; await load(null); toast(t('deleted')); }); break;
-    case 'export': {
-      const r = await fetch('/api/export.csv?plan=' + encodeURIComponent(d.plan.id), { headers: { authorization: 'Bearer ' + BOOT.token } });
-      const blob = await r.blob(), a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = `training-plan-${d.plan.year}.csv`; a.click();
+    case 'export-x': {
+      try { await loadXlsx(); } catch (x) { toast(x.message, true); break; }
+      const safe = String(d.plan.name || 'training-plan').replace(/[\\/:*?"<>|]+/g, '-');
+      XLSX.writeFile(workbookFor(d.plan, d.programs, d.milestones, true), `${safe}.xlsx`);
+      break;
+    }
+    case 'import-open': S.modal = { kind: 'import', target: d.plan ? 'cur' : 'new' }; render(); loadXlsx().catch(() => {}); break;
+    case 'import-template': try { await loadXlsx(); downloadTemplate(); } catch (x) { toast(x.message, true); } break;
+    case 'import-target': S.modal.target = el.dataset.v; render(); break;
+    case 'import-go': {
+      const im = S.modal, r = im.result;
+      const body = { programs: r.programs, milestones: r.milestones };
+      if (im.target === 'cur' && d.plan) body.plan_id = d.plan.id; else body.new_plan = im.newPlan;
+      await withBusy(async () => {
+        const res = await call('POST', '/import', body);
+        S.modal = null;
+        await load(res.plan_id);
+        S.tab = 'breakdown';
+        toast(t('importDone', { pc: res.programs_created, pu: res.programs_updated, mc: res.milestones_created, mu: res.milestones_updated }));
+        if (res.warnings.length) toast(res.warnings[0], true);
+      });
       break;
     }
     case 'sync': await withBusy(async () => {

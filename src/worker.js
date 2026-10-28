@@ -25,6 +25,9 @@
    ========================================================================== */
 
 import APP_HTML from './app.html';
+// SheetJS Community Edition 0.18.5 (Apache-2.0), served from this Worker so Excel
+// import/export works without a third-party CDN.
+import XLSX_JS from './vendor/xlsx.full.min.txt';
 
 const TOKEN_TTL_SEC = 12 * 3600;
 
@@ -938,6 +941,103 @@ function demoGet(path) {
   throw new HttpError(404, `Demo catalog has no data for ${u.pathname}`);
 }
 
+/* ----------------------------- Excel import ----------------------------- */
+// The browser parses the workbook (SheetJS) and posts clean rows here.
+// Programs match existing ones by name (case-insensitive) and are updated;
+// milestones match on program + month + title and are updated, else added.
+
+async function importPlan(env, user, b) {
+  const programs = Array.isArray(b.programs) ? b.programs.slice(0, 200) : [];
+  const milestones = Array.isArray(b.milestones) ? b.milestones.slice(0, 2000) : [];
+  if (!programs.length && !milestones.length) throw new HttpError(400, 'The file has no programs or milestones.');
+  const t = now();
+  let planId = b.plan_id ? String(b.plan_id) : null;
+  if (planId) {
+    if (!(await first(env, 'SELECT id FROM plans WHERE id = ?', planId))) throw new HttpError(404, 'Plan not found.');
+  } else {
+    const np = b.new_plan || {};
+    planId = uid();
+    await insertRow(env, 'plans', { id: planId, name: clampStr(np.name || 'Imported training plan'), name_zh: clampStr(np.name_zh), year: Math.round(num(np.year, new Date().getUTCFullYear())), owner: user.username, created_at: t, updated_at: t });
+  }
+
+  const stmts = [];
+  const res = { plan_id: planId, programs_created: 0, programs_updated: 0, milestones_created: 0, milestones_updated: 0, warnings: [] };
+  const existingProgs = await all(env, 'SELECT * FROM programs WHERE plan_id = ?', planId);
+  const progByName = new Map(existingProgs.map((p) => [p.name.trim().toLowerCase(), p]));
+  let sort = existingProgs.length;
+
+  const ensureProgram = (row, fromMilestone) => {
+    const key = String(row.name || '').trim().toLowerCase();
+    if (!key) return null;
+    let p = progByName.get(key);
+    const fields = cleanFields(row, PROGRAM_FIELDS);
+    if (p) {
+      if (!fromMilestone) {
+        const upd = Object.fromEntries(Object.entries(fields).filter(([k, v]) => k !== 'name' && v !== '' && k !== 'sort' && k !== 'color'));
+        if (Object.keys(upd).length) {
+          const keys = Object.keys(upd);
+          stmts.push(env.DB.prepare(`UPDATE programs SET ${keys.map((k) => `${k}=?`).join(',')}, updated_at=? WHERE id=?`).bind(...keys.map((k) => upd[k]), t, p.id));
+          if (!p._counted) { res.programs_updated++; p._counted = true; }
+        }
+      }
+      return p;
+    }
+    p = { id: uid(), plan_id: planId, name: clampStr(row.name), name_zh: '', objective: '', objective_zh: '', target_sessions: 0, target_trainees: 0, owner: '', color: sort % 8, sort: sort++, ...fields, updated_at: t };
+    p.name = clampStr(row.name); p.color = 'color' in fields ? fields.color : p.color;
+    const keys = ['id', 'plan_id', 'name', 'name_zh', 'objective', 'objective_zh', 'target_sessions', 'target_trainees', 'owner', 'color', 'sort', 'updated_at'];
+    stmts.push(env.DB.prepare(`INSERT INTO programs (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).bind(...keys.map((k) => p[k] ?? null)));
+    progByName.set(key, p);
+    res.programs_created++;
+    if (fromMilestone) res.warnings.push(`Program "${row.name}" was not on the Programs sheet, so it was created with no annual targets.`);
+    return p;
+  };
+
+  for (const row of programs) ensureProgram(row, false);
+
+  // Audience names -> Docebo audience or branch (exact name match).
+  const audCache = new Map();
+  const audNames = [...new Set(milestones.map((m) => String(m.audience || '').trim()).filter(Boolean))].slice(0, 25);
+  for (const name of audNames) {
+    try {
+      const hits = await searchAudiences(env, name);
+      const hit = hits.find((h) => h.name.trim().toLowerCase() === name.toLowerCase());
+      if (hit) {
+        let size = null;
+        try { size = (await audienceMembers(env, hit.type, hit.id)).length; } catch { /* size optional */ }
+        audCache.set(name.toLowerCase(), { ...hit, size });
+      } else res.warnings.push(`Audience "${name}" was not found in Docebo, so those milestones have no audience yet.`);
+    } catch (e) { res.warnings.push(`Could not look up audience "${name}": ${e.message}`); }
+  }
+
+  const existingMs = await all(env, 'SELECT * FROM milestones WHERE plan_id = ?', planId);
+  const msKey = (pid, month, title) => `${pid}|${month}|${String(title).trim().toLowerCase()}`;
+  const msByKey = new Map(existingMs.map((m) => [msKey(m.program_id, m.month, m.title), m]));
+  for (const row of milestones) {
+    const p = ensureProgram({ name: row.program }, true);
+    if (!p) continue;
+    const fields = cleanFields({ ...row, program_id: p.id }, MILESTONE_FIELDS.filter((f) => !f.startsWith('audience')));
+    if (!fields.month) continue;
+    const aud = row.audience ? audCache.get(String(row.audience).trim().toLowerCase()) : null;
+    const audFields = aud ? { audience_type: aud.type, audience_id: aud.id, audience_name: aud.name, audience_size: aud.size } : {};
+    const key = msKey(p.id, fields.month, fields.title || '');
+    const ex = msByKey.get(key);
+    if (ex) {
+      const upd = { ...Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== '')), ...audFields, updated_at: t };
+      const keys = Object.keys(upd);
+      stmts.push(env.DB.prepare(`UPDATE milestones SET ${keys.map((k) => `${k}=?`).join(',')} WHERE id=?`).bind(...keys.map((k) => upd[k]), ex.id));
+      res.milestones_updated++;
+    } else {
+      const m = { id: uid(), plan_id: planId, title: '', title_zh: '', planned_sessions: 0, planned_trainees: 0, region: '', delivery: '', notes: '', ...fields, ...audFields, updated_at: t };
+      const keys = Object.keys(m);
+      stmts.push(env.DB.prepare(`INSERT INTO milestones (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).bind(...keys.map((k) => m[k] ?? null)));
+      msByKey.set(key, m);
+      res.milestones_created++;
+    }
+  }
+  for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
+  return res;
+}
+
 /* ----------------------------- CSV export ------------------------------- */
 
 async function exportCsv(env, planId) {
@@ -1131,6 +1231,7 @@ async function api(req, env, url) {
     return json(await doceboGet(env, path));
   }
 
+  if (p === '/import' && method === 'POST') return json(await importPlan(env, user, await readBody(req)));
   if (p === '/export.csv' && method === 'GET') return exportCsv(env, url.searchParams.get('plan'));
 
   throw new HttpError(404, 'Not found.');
@@ -1143,6 +1244,7 @@ export default {
       if (url.pathname.startsWith('/api/')) return await api(req, env, url);
       if (url.pathname === '/' || url.pathname === '/index.html') return await serveApp(env, url);
       if (url.pathname === '/favicon.ico') return new Response(null, { status: 204 });
+      if (url.pathname === '/vendor/xlsx.js') return new Response(XLSX_JS, { headers: { 'content-type': 'application/javascript; charset=utf-8', 'cache-control': 'public, max-age=604800, immutable' } });
       return new Response('Not found', { status: 404 });
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
