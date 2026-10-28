@@ -166,7 +166,7 @@ main { padding: 20px; max-width: 1480px; margin: 0 auto; }
 .drawer-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
 .form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); font-weight: 500; }
-.form label.full { grid-column: 1 / -1; }
+.form label.full, .form .full { grid-column: 1 / -1; }
 .form input, .form select { width: 100%; }
 .sub-h { display: flex; align-items: center; gap: 8px; margin: 22px 0 10px; }
 .sub-h h4 { margin: 0; font-size: 14px; font-weight: 650; }
@@ -199,6 +199,19 @@ main { padding: 20px; max-width: 1480px; margin: 0 auto; }
 .colors button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; }
 .colors button.on { border-color: var(--ink); box-shadow: inset 0 0 0 2px #fff; }
 
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.panel { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--surface-2); margin-top: 10px; }
+.panel-h { font-weight: 650; margin-bottom: 10px; }
+.panel .seg button { font-size: 12.5px; }
+.panel .row { display: flex; gap: 8px; } .panel .row input { flex: 1; min-width: 0; }
+.srow { display: grid; grid-template-columns: 1.4fr 1fr 1fr .8fr auto; gap: 6px; margin-bottom: 6px; }
+.srow input { min-width: 0; width: 100%; padding: 4px 6px; }
+.aud-chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface); }
+.badge.new { background: var(--good-soft); color: var(--good-ink); text-transform: none; font-weight: 600; }
+.elist { margin: 8px 0 12px; padding-left: 18px; }
+.elist li { margin-bottom: 6px; }
+.note { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
 .empty { text-align: center; padding: 60px 20px; }
 .empty h2 { margin: 0 0 6px; font-size: 20px; }
 .empty p { color: var(--ink-2); max-width: 520px; margin: 0 auto 18px; }
@@ -269,6 +282,19 @@ const T = {
     f_behind: 'Past milestones below plan', f_behind_d: '{m}: {a} of {b} sessions delivered, {c} of {d} trainees.', f_behind_t: '{m}: {c} of {d} trainees completed.',
     f_short: 'Upcoming milestones not fully scheduled', f_short_d: '{m}: {a} of {b} planned sessions exist in Docebo.',
     allGood: 'Everything in this group is aligned.',
+    audience: 'Audience (to whom)', chooseAud: 'Choose audience', changeAud: 'Change', clearAud: 'Clear', audSearch: 'Search Docebo audiences and branches',
+    audGroup: 'Audience', audBranch: 'Branch', users: 'users', noAud: 'No audience chosen yet.',
+    audVsPlan: 'Audience has {a} users; this milestone plans {b} trainees.',
+    deliverT: 'Delivery in Docebo', createBtn: 'Create sessions in Docebo', linkBtn: 'Link existing', hide: 'Hide',
+    createT: 'Create sessions in Docebo', useExisting: 'Use an existing ILT course', newCourse: 'Create a new ILT course', courseName: 'New course name',
+    pickCourse: 'Search ILT courses', chosenCourse: 'Course', sessionsT: 'Sessions', date: 'Date', start: 'Start', end: 'End', seats: 'Seats',
+    addRow: '+ Add session', timezone: 'Time zone', meeting: 'Meeting link', meetingHint: 'Docebo needs a venue or a webinar link on every event. Venues are skipped in this POC, so each event gets this link.',
+    createGo: 'Create {n} session(s) in Docebo', createdOk: 'Created {n} session(s) in Docebo', createdPartial: 'Created {n}, {f} failed: {e}',
+    enrolT: 'Enrol the audience', enrolPreview: 'Preview enrolment', enrolGo: 'Confirm and enrol {n} users', enrolPlan: '{n} users from {a} will be enrolled:',
+    enrolNeedAud: 'Choose an audience and save the milestone to enrol it.', enrolNeedLinks: 'Create or link the Docebo sessions first.',
+    enrolDone: 'Enrolled {n} users ({a} already enrolled)', enrolFail: '{f} could not be enrolled: {e}', createdBadge: 'created here',
+    f_noaud: 'Upcoming milestones without an audience', f_noaud_d: 'Due {m}. Nobody is assigned to receive this training yet.',
+    saveFirst: 'Save the milestone first.',
     saved: 'Saved', linkedOk: 'Linked and synced', removed: 'Removed', deleted: 'Deleted',
     syncDone: 'Synced {n} items', syncPartial: 'Synced {n} items, {p} left. Sync again to continue.',
     blockedH: 'Open this page from Docebo', blocked_reason: 'This planner signs you in through the Docebo Iframe widget. Open it from its Docebo page.',
@@ -317,6 +343,19 @@ const T = {
     f_behind: '已过期且未达计划的里程碑', f_behind_d: '{m}：已交付 {a}/{b} 场，已培训 {c}/{d} 人。', f_behind_t: '{m}：已完成 {c}/{d} 人。',
     f_short: '尚未完全排期的近期里程碑', f_short_d: '{m}：Docebo中已有 {a}/{b} 个计划场次。',
     allGood: '该组全部一致。',
+    audience: '培训对象', chooseAud: '选择培训对象', changeAud: '更改', clearAud: '清除', audSearch: '搜索Docebo受众或组织分支',
+    audGroup: '受众', audBranch: '分支', users: '人', noAud: '尚未选择培训对象。',
+    audVsPlan: '该对象共 {a} 人；本里程碑计划培训 {b} 人。',
+    deliverT: 'Docebo中的交付', createBtn: '在Docebo中创建场次', linkBtn: '关联已有内容', hide: '收起',
+    createT: '在Docebo中创建场次', useExisting: '使用已有ILT课程', newCourse: '新建ILT课程', courseName: '新课程名称',
+    pickCourse: '搜索ILT课程', chosenCourse: '课程', sessionsT: '场次', date: '日期', start: '开始', end: '结束', seats: '名额',
+    addRow: '+ 添加场次', timezone: '时区', meeting: '会议链接', meetingHint: 'Docebo要求每个活动必须设置场地或线上会议链接。本POC不设置场地，因此每个活动使用此链接。',
+    createGo: '在Docebo中创建 {n} 个场次', createdOk: '已在Docebo中创建 {n} 个场次', createdPartial: '已创建 {n} 个，{f} 个失败：{e}',
+    enrolT: '为培训对象报名', enrolPreview: '预览报名', enrolGo: '确认为 {n} 人报名', enrolPlan: '将为 {a} 的 {n} 人报名：',
+    enrolNeedAud: '请先选择培训对象并保存里程碑。', enrolNeedLinks: '请先创建或关联Docebo场次。',
+    enrolDone: '已报名 {n} 人（{a} 人此前已报名）', enrolFail: '{f} 人报名失败：{e}', createdBadge: '本应用创建',
+    f_noaud: '尚未指定培训对象的近期里程碑', f_noaud_d: '计划于{m}。尚未指定接受此培训的人员。',
+    saveFirst: '请先保存里程碑。',
     saved: '已保存', linkedOk: '已关联并同步', removed: '已移除', deleted: '已删除',
     syncDone: '已同步 {n} 项', syncPartial: '已同步 {n} 项，剩余 {p} 项，请再次同步。',
     blockedH: '请从Docebo中打开此页面', blocked_reason: '本应用通过Docebo iFrame组件识别登录身份，请从对应的Docebo页面打开。',
@@ -417,7 +456,7 @@ function visibleMilestones() {
 }
 
 function findings() {
-  const d = S.data, year = d.plan.year, nk = nowKey(year), out = { target: [], unlinked: [], outside: [], behind: [], short: [] };
+  const d = S.data, year = d.plan.year, nk = nowKey(year), out = { target: [], unlinked: [], outside: [], behind: [], short: [], noaud: [] };
   const mName = (m) => t('monthsLong')[m - 1];
   for (const p of d.programs) {
     const ms = d.milestones.filter((m) => m.program_id === p.id);
@@ -433,6 +472,7 @@ function findings() {
       if (lm && (lm.y !== year || lm.m !== ms.month)) out.outside.push({ ms, text: t('f_outside_d', { n: l.name, m: mName(ms.month), r: (lm.y !== year ? lm.y + ' ' : '') + mName(lm.m) }) });
     }
     if (ms.month < nk && (st === 'behind' || st === 'atrisk')) out.behind.push({ ms, st, text: t(+ms.planned_sessions ? 'f_behind_d' : 'f_behind_t', { m: mName(ms.month), a: a.deliv, b: ms.planned_sessions, c: fmt(a.trainees), d: fmt(ms.planned_trainees) }) });
+    if (ms.month >= nk && ms.month <= nk + 2 && !ms.audience_id) out.noaud.push({ ms, text: t('f_noaud_d', { m: mName(ms.month) }) });
     if (ms.month >= nk && ms.month <= nk + 2 && a.links.length && +ms.planned_sessions > a.sched) out.short.push({ ms, text: t('f_short_d', { m: mName(ms.month), a: a.sched, b: ms.planned_sessions }) });
   }
   return out;
@@ -441,7 +481,26 @@ function findings() {
 /* --------------------------- render --------------------------- */
 const $app = document.getElementById('app');
 
+/** Keep unsaved edits in the milestone form when the drawer re-renders. */
+function captureForm() {
+  const f = document.getElementById('msForm');
+  if (!f || !S.drawer) return;
+  const key = S.drawer.ms.id || 'new:' + S.drawer.ms.program_id + ':' + S.drawer.ms.month;
+  if (f.dataset.key !== key) return;
+  const v = Object.fromEntries(new FormData(f).entries());
+  if (v.month) v.month = +v.month;
+  Object.assign(S.drawer.ms, v);
+}
+
+/** Form fields the user may have edited but not saved yet. */
+function pickForm(ms) {
+  const o = {};
+  for (const k of ['title', 'title_zh', 'program_id', 'month', 'planned_sessions', 'planned_trainees', 'region', 'delivery', 'notes']) if (k in ms) o[k] = ms[k];
+  return o;
+}
+
 function render() {
+  captureForm();
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
   document.title = t('app');
   if (!BOOT || !BOOT.token) {
@@ -475,7 +534,7 @@ function syncLabel() {
 function header() {
   const d = S.data;
   const f = d.plan ? findings() : null;
-  const nIssues = f ? f.unlinked.length + f.outside.length + f.behind.length + f.target.length + f.short.length : 0;
+  const nIssues = f ? f.unlinked.length + f.outside.length + f.behind.length + f.target.length + f.short.length + f.noaud.length : 0;
   const modeTxt = BOOT.mode === 'demo' ? `<b>${esc(t('demo'))}</b>` : `<b>${esc(t('live'))}</b> ${esc(BOOT.domain || '')}`;
   return `<header class="top">
     <div class="top-row">
@@ -642,7 +701,7 @@ function chip(ms, p) {
     ${pill(st)}
     <span class="t">${esc(loc(ms, 'title'))}</span>
     <span class="n">${sessTxt ? `<span>${sessTxt}</span>` : ''}${trTxt ? `<span>${trTxt}</span>` : ''}</span>
-    <span class="r">${esc(val(ms.region))}${outside ? ' · <span style="color:var(--serious-ink)">⇄</span>' : ''}</span></button>`;
+    <span class="r">${esc(val(ms.region))}${ms.audience_name ? ' · ' + esc(ms.audience_name) : ''}${outside ? ' · <span style="color:var(--serious-ink)">⇄</span>' : ''}</span></button>`;
 }
 
 function alignmentView() {
@@ -662,6 +721,7 @@ function alignmentView() {
     group('f_unlinked', '!', 'serious', f.unlinked) +
     group('f_outside', '⇄', 'serious', f.outside) +
     group('f_short', '▲', 'warn', f.short) +
+    group('f_noaud', '?', 'warn', f.noaud) +
     group('f_target', 'Σ', 'warn', f.target);
 }
 
@@ -676,20 +736,23 @@ function drawerView() {
   const nk = nowKey(d.plan.year);
   let links = '';
   if (!isNew) {
-    links = `<div class="sub-h"><h4>${esc(t('linked'))}</h4><div class="spacer"></div>${a.links.length ? `<button class="btn small" data-act="sync-ms" ${S.busy ? 'disabled' : ''}>⟳ ${esc(t('syncMs'))}</button>` : ''}</div>
+    links = `<div class="sub-h"><h4>${esc(t('deliverT'))}</h4><div class="spacer"></div>${a.links.length ? `<button class="btn small" data-act="sync-ms" ${S.busy ? 'disabled' : ''}>⟳ ${esc(t('syncMs'))}</button>` : ''}</div>
       <div class="actual-strip">
         <div><div class="l">${esc(t('aSched'))}</div><div class="v">${a.sched} <small>/ ${ms.planned_sessions}</small></div></div>
         <div><div class="l">${esc(t('aDeliv'))}</div><div class="v">${a.deliv} <small>/ ${ms.planned_sessions}</small></div></div>
         <div><div class="l">${esc(t('aTrain'))}</div><div class="v">${ms.month <= nk ? fmt(a.trainees) : '-'} <small>/ ${fmt(ms.planned_trainees)}</small></div></div>
       </div><div style="margin-top:10px">${pill(msStatus(ms, a))}</div>
       <div style="margin-top:12px">${a.links.length ? a.links.map(linkRow.bind(null, ms)).join('') : `<p class="sync-meta" style="white-space:normal">${esc(t('noLinks'))}</p>`}</div>
-      ${pickerView()}`;
+      <div class="row-btns"><button class="btn small ${S.create ? 'on' : ''}" data-act="toggle-create">＋ ${esc(t('createBtn'))}</button><button class="btn small ${S.showLink ? 'on' : ''}" data-act="toggle-link">⛓ ${esc(t('linkBtn'))}</button></div>
+      ${S.create ? createView(ms, a) : ''}
+      ${S.showLink ? pickerView() : ''}
+      ${enrolView(ms, a)}`;
   }
   return `<div class="scrim" data-act="close"></div>
   <aside class="drawer" role="dialog" aria-modal="true" aria-label="${esc(t('msEdit'))}">
     <div class="drawer-head"><div style="flex:1;min-width:0"><div class="sub">${esc(p ? loc(p, 'name') : '')} · ${esc(t('monthsLong')[ms.month - 1])} ${d.plan.year}</div><h2>${esc(isNew ? t('msNew') : loc(ms, 'title'))}</h2></div><button class="btn ghost small" data-act="close" aria-label="${esc(t('close'))}">✕</button></div>
     <div class="drawer-body">
-      <form class="form" id="msForm" autocomplete="off">
+      <form class="form" id="msForm" data-key="${esc(ms.id || 'new:' + ms.program_id + ':' + ms.month)}" autocomplete="off">
         <label class="full">${esc(t('title'))}<input type="text" name="title" value="${esc(ms.title)}" required></label>
         <label class="full">${esc(t('titleZh'))}<input type="text" name="title_zh" value="${esc(ms.title_zh)}"></label>
         <label>${esc(t('program'))}<select name="program_id">${d.programs.map((x) => `<option value="${x.id}" ${x.id === ms.program_id ? 'selected' : ''}>${esc(loc(x, 'name'))}</option>`).join('')}</select></label>
@@ -700,6 +763,7 @@ function drawerView() {
         <label>${esc(t('delivery'))}<select name="delivery"><option value=""></option>${opt(T[lang].deliveries, ms.delivery, T.en.deliveries)}${ms.delivery && !T.en.deliveries.includes(ms.delivery) ? `<option selected>${esc(ms.delivery)}</option>` : ''}</select></label>
         <label class="full">${esc(t('notes'))}<textarea name="notes">${esc(ms.notes)}</textarea></label>
       </form>
+      ${audienceView(ms)}
       ${links}
     </div>
     <div class="drawer-foot">
@@ -719,12 +783,101 @@ function linkRow(ms, l) {
     ? `${esc(t('enrolled'))} ${fmt(l.act_enrolled)} · ${esc(t('attended'))} ${fmt(l.act_trainees)}${l.act_delivered ? ' · ✓ ' + esc(t('delivered')) : ''}`
     : `${esc(t('enrolled'))} ${fmt(l.act_enrolled)} · ${esc(t('completedM'))} ${fmt(l.act_trainees)}`;
   return `<div class="link"><div class="body">
-    <div class="nm"><span class="badge ${l.item_type === 'course' ? 'course' : ''}">${l.item_type === 'session' ? 'ILT' : 'Course'}</span>${esc(l.name)}</div>
+    <div class="nm"><span class="badge ${l.item_type === 'course' ? 'course' : ''}">${l.item_type === 'session' ? 'ILT' : 'Course'}</span>${esc(l.name)}${+l.created_in_docebo ? ` <span class="badge new">${esc(t('createdBadge'))}</span>` : ''}</div>
     ${l.item_type === 'session' && l.course_name ? `<div class="meta">${esc(l.course_name)}</div>` : ''}
     <div class="meta">${l.synced_at ? stats : '...'}${dates ? ' · ' + esc(t('dates')) + ' ' + esc(dates) : ''}</div>
     ${outside ? `<div class="warn">⇄ ${esc(t('outside', { m: t('monthsLong')[lm.m - 1] + (lm.y !== S.data.plan.year ? ' ' + lm.y : '') }))}</div>` : ''}
+    ${l.enrol_note ? `<div class="note">👥 ${esc(l.enrol_note)}</div>` : ''}
     ${l.sync_note && /error/i.test(l.sync_note) ? `<div class="warn">${esc(l.sync_note)}</div>` : ''}
   </div><button class="btn ghost small" data-act="unlink" data-id="${l.id}">${esc(t('remove'))}</button></div>`;
+}
+
+function audienceView(ms) {
+  const au = S.aud;
+  let body;
+  if (ms.audience_id) {
+    const kind = ms.audience_type === 'branch' ? t('audBranch') : t('audGroup');
+    const size = ms.audience_size != null && ms.audience_size !== '' ? ` · ${fmt(ms.audience_size)} ${esc(t('users'))}` : '';
+    const warn = ms.audience_size != null && +ms.planned_trainees && +ms.audience_size !== +ms.planned_trainees ? `<div class="note">${esc(t('audVsPlan', { a: fmt(ms.audience_size), b: fmt(ms.planned_trainees) }))}</div>` : '';
+    body = `<div class="aud-chosen"><span class="badge ${ms.audience_type === 'branch' ? 'course' : ''}">${esc(kind)}</span><b>${esc(ms.audience_name)}</b><span class="sync-meta">${size}</span><div class="spacer"></div>
+      <button class="btn ghost small" data-act="aud-open">${esc(t('changeAud'))}</button><button class="btn ghost small" data-act="aud-clear">${esc(t('clearAud'))}</button></div>${warn}`;
+  } else {
+    body = `<div class="aud-chosen"><span class="sync-meta">${esc(t('noAud'))}</span><div class="spacer"></div><button class="btn small" data-act="aud-open">${esc(t('chooseAud'))}</button></div>`;
+  }
+  let picker = '';
+  if (au) {
+    const list = au.loading ? `<div class="sync-meta" style="padding:8px"><span class="spin"></span></div>`
+      : au.items ? (au.items.length ? `<div class="plist">${au.items.map((x, i) => `<button class="pitem" data-act="aud-pick" data-i="${i}"><span class="badge ${x.type === 'branch' ? 'course' : ''}">${esc(x.type === 'branch' ? t('audBranch') : t('audGroup'))}</span><span class="nm">${esc(x.name)}</span><span class="x">${esc(x.note || '')}</span></button>`).join('')}</div>` : `<div class="sync-meta">${esc(t('noResults'))}</div>`) : '';
+    picker = `<div class="picker" style="margin-top:8px"><form class="row" id="audForm"><input type="search" name="q" placeholder="${esc(t('audSearch'))}" value="${esc(au.q || '')}" aria-label="${esc(t('audSearch'))}"><button class="btn" type="submit">${esc(t('searchBtn'))}</button></form>${list}</div>`;
+  }
+  return `<div class="sub-h"><h4>${esc(t('audience'))}</h4></div>${body}${picker}`;
+}
+
+const TZS = ['Asia/Shanghai', 'Asia/Singapore', 'Asia/Jakarta', 'Asia/Bangkok', 'Asia/Ho_Chi_Minh', 'Asia/Dubai', 'Asia/Riyadh', 'Africa/Johannesburg', 'Africa/Lagos', 'America/Sao_Paulo', 'America/Mexico_City', 'Europe/London', 'UTC'];
+
+function defaultCreate(ms, a) {
+  const y = S.data.plan.year, mm = String(ms.month).padStart(2, '0');
+  const n = Math.max(1, (+ms.planned_sessions || 1) - (a ? a.sched : 0));
+  const seats = Math.max(1, Math.ceil((+ms.planned_trainees || 20) / Math.max(1, +ms.planned_sessions || 1)));
+  const days = [8, 15, 22, 27, 4, 11, 18, 25];
+  const p = S.data.programs.find((x) => x.id === ms.program_id);
+  let tz = 'Asia/Shanghai';
+  try { const z = Intl.DateTimeFormat().resolvedOptions().timeZone; if (z) tz = z; } catch (e) {}
+  const existing = a && a.links.find((l) => l.item_type === 'session');
+  return {
+    mode: existing ? 'existing' : 'existing', course: existing ? { id: existing.course_id, name: existing.course_name || existing.name, type: 'classroom' } : null,
+    q: '', courses: null, newName: p ? p.name : ms.title, tz: TZS.includes(tz) ? tz : 'Asia/Shanghai', url: BOOT.meetingUrl || '',
+    rows: Array.from({ length: n }, (_, i) => ({ date: `${y}-${mm}-${String(days[i % days.length]).padStart(2, '0')}`, start: '09:00', end: '17:00', seats })),
+  };
+}
+
+function createView(ms, a) {
+  const c = S.create;
+  if (!ms.id) return `<p class="sync-meta">${esc(t('saveFirst'))}</p>`;
+  let course;
+  if (c.mode === 'new') {
+    course = `<label class="full">${esc(t('courseName'))}<input type="text" data-c="newName" value="${esc(c.newName)}"></label>`;
+  } else if (c.course) {
+    course = `<div class="aud-chosen full"><span class="badge">ILT</span><b>${esc(c.course.name)}</b><div class="spacer"></div><button class="btn ghost small" data-act="cr-unpick">${esc(t('changeAud'))}</button></div>`;
+  } else {
+    const list = c.loading ? `<div class="sync-meta" style="padding:8px"><span class="spin"></span></div>`
+      : c.courses ? (c.courses.length ? `<div class="plist">${c.courses.map((x, i) => `<button class="pitem" data-act="cr-pick" data-i="${i}"><span class="badge">ILT</span><span class="nm">${esc(x.name)}</span><span class="x">${esc(x.code)}</span></button>`).join('')}</div>` : `<div class="sync-meta">${esc(t('noResults'))}</div>`) : '';
+    course = `<div class="full"><form class="row" id="crForm"><input type="search" name="q" placeholder="${esc(t('pickCourse'))}" value="${esc(c.q)}"><button class="btn" type="submit">${esc(t('searchBtn'))}</button></form>${list}</div>`;
+  }
+  const rows = c.rows.map((r, i) => `<div class="srow">
+      <input type="date" data-row="${i}" data-f="date" value="${esc(r.date)}" aria-label="${esc(t('date'))}">
+      <input type="time" data-row="${i}" data-f="start" value="${esc(r.start)}" aria-label="${esc(t('start'))}">
+      <input type="time" data-row="${i}" data-f="end" value="${esc(r.end)}" aria-label="${esc(t('end'))}">
+      <input type="number" min="1" data-row="${i}" data-f="seats" value="${esc(r.seats)}" aria-label="${esc(t('seats'))}">
+      <button class="btn ghost small" data-act="cr-delrow" data-i="${i}" aria-label="${esc(t('remove'))}" ${c.rows.length < 2 ? 'disabled' : ''}>✕</button></div>`).join('');
+  return `<div class="panel">
+    <div class="panel-h">${esc(t('createT'))}</div>
+    <div class="seg" role="group" style="margin-bottom:10px"><button data-act="cr-mode" data-v="existing" class="${c.mode !== 'new' ? 'on' : ''}">${esc(t('useExisting'))}</button><button data-act="cr-mode" data-v="new" class="${c.mode === 'new' ? 'on' : ''}">${esc(t('newCourse'))}</button></div>
+    <div class="form">${course}</div>
+    <div class="sub-h" style="margin:14px 0 6px"><h4 style="font-size:13px">${esc(t('sessionsT'))}</h4><div class="spacer"></div><span class="sync-meta">${esc(t('date'))} · ${esc(t('start'))} · ${esc(t('end'))} · ${esc(t('seats'))}</span></div>
+    ${rows}
+    <button class="btn ghost small" data-act="cr-addrow">${esc(t('addRow'))}</button>
+    <div class="form" style="margin-top:10px">
+      <label>${esc(t('timezone'))}<select data-c="tz">${TZS.map((z) => `<option ${z === c.tz ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
+      <label>${esc(t('meeting'))}<input type="url" data-c="url" value="${esc(c.url)}" placeholder="https://teams.microsoft.com/..."></label>
+    </div>
+    <p class="sync-meta" style="white-space:normal;margin:6px 0 10px">${esc(t('meetingHint'))}</p>
+    <button class="btn primary" data-act="cr-go" ${S.busy || (c.mode !== 'new' && !c.course) ? 'disabled' : ''}>${esc(t('createGo', { n: c.rows.length }))}</button>
+  </div>`;
+}
+
+function enrolView(ms, a) {
+  const e = S.enrol;
+  let inner;
+  if (!ms.audience_id) inner = `<p class="sync-meta" style="white-space:normal">${esc(t('enrolNeedAud'))}</p>`;
+  else if (!a.links.length) inner = `<p class="sync-meta" style="white-space:normal">${esc(t('enrolNeedLinks'))}</p>`;
+  else if (e && e.preview) {
+    const total = e.targets.reduce((s, x) => s + x.count, 0);
+    inner = `<div class="panel"><div>${esc(t('enrolPlan', { n: fmt(e.members), a: e.audience }))}</div>
+      <ul class="elist">${e.targets.map((x) => `<li><b>${fmt(x.count)}</b> → ${esc(x.name)}<div class="sync-meta" style="white-space:normal">${esc(x.sample.join(', '))}${x.count > x.sample.length ? ', ...' : ''}</div></li>`).join('')}</ul>
+      <button class="btn primary" data-act="en-go" ${S.busy || !total ? 'disabled' : ''}>${esc(t('enrolGo', { n: fmt(total) }))}</button> <button class="btn" data-act="en-cancel">${esc(t('cancel'))}</button></div>`;
+  } else inner = `<button class="btn" data-act="en-preview" ${S.busy ? 'disabled' : ''}>👥 ${esc(t('enrolPreview'))}</button>`;
+  return `<div class="sub-h"><h4>${esc(t('enrolT'))}</h4></div>${inner}`;
 }
 
 function pickerView() {
@@ -782,6 +935,10 @@ function formData(id) {
 
 /* --------------------------- events --------------------------- */
 function bindDrawer() {
+  const af = document.getElementById('audForm');
+  if (af) af.addEventListener('submit', (e) => { e.preventDefault(); searchAudiences(new FormData(af).get('q')); });
+  const cf = document.getElementById('crForm');
+  if (cf) cf.addEventListener('submit', (e) => { e.preventDefault(); searchIlt(new FormData(cf).get('q')); });
   const pk = document.getElementById('pkForm');
   if (pk) pk.addEventListener('submit', (e) => { e.preventDefault(); searchDocebo(new FormData(pk).get('q')); });
   const first = document.querySelector('.drawer input[name=title], .modal input[name=name]');
@@ -797,6 +954,27 @@ async function searchDocebo(q) {
   } catch (e) { S.picker = { q, courses: [], loading: false }; toast(e.message, true); }
   keepDrawerScroll(render);
 }
+
+async function searchAudiences(q) {
+  S.aud = { q, items: null, loading: true }; keepDrawerScroll(render);
+  try { S.aud = { q, items: (await call('GET', '/docebo/audiences?q=' + encodeURIComponent(q || ''))).items, loading: false }; }
+  catch (e) { S.aud = { q, items: [], loading: false }; toast(e.message, true); }
+  keepDrawerScroll(render);
+}
+
+async function searchIlt(q) {
+  S.create = { ...S.create, q, courses: null, loading: true }; keepDrawerScroll(render);
+  try { const r = await call('GET', '/docebo/courses?q=' + encodeURIComponent(q || '')); S.create = { ...S.create, courses: r.items.filter((c) => c.type === 'classroom'), loading: false }; }
+  catch (e) { S.create = { ...S.create, courses: [], loading: false }; toast(e.message, true); }
+  keepDrawerScroll(render);
+}
+
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!S.create) return;
+  if (el.dataset.c) S.create[el.dataset.c] = el.value;
+  else if (el.dataset.row != null && el.dataset.f) S.create.rows[+el.dataset.row][el.dataset.f] = el.value;
+});
 
 function keepDrawerScroll(fn) {
   const b = document.querySelector('.drawer-body'), top = b ? b.scrollTop : 0;
@@ -833,7 +1011,7 @@ document.addEventListener('click', async (e) => {
     case 'lang': lang = el.dataset.v; try { localStorage.setItem('tpp-lang', lang); } catch (x) {} keepDrawerScroll(render); break;
     case 'tab': S.tab = el.dataset.v; try { localStorage.setItem('tpp-tab', S.tab); } catch (x) {} render(); break;
     case 'metric': S.metric = el.dataset.v; render(); break;
-    case 'close': S.drawer = null; S.modal = null; S.picker = null; render(); break;
+    case 'close': S.drawer = null; S.modal = null; S.picker = null; S.aud = null; S.create = null; S.enrol = null; S.showLink = false; render(); break;
     case 'seed': S.modal = null; await withBusy(async () => { const r = await call('POST', '/seed', { year: NOW.getFullYear() }); await load(r.id); S.tab = 'overview'; }); break;
     case 'new-plan': S.modal = { kind: 'plan', plan: { name: '', name_zh: '', year: NOW.getFullYear() + (NOW.getMonth() >= 9 ? 1 : 0) } }; S.focusFirst = true; render(); break;
     case 'edit-plan': S.modal = { kind: 'plan', plan: { ...d.plan } }; render(); break;
@@ -877,11 +1055,12 @@ document.addEventListener('click', async (e) => {
     case 'add-ms': {
       const p = d.programs.find((x) => x.id === el.dataset.p);
       S.drawer = { ms: { program_id: p.id, month: +el.dataset.m, title: p.name, title_zh: p.name_zh, planned_sessions: 1, planned_trainees: 0, region: '', delivery: '', notes: '' } };
-      S.picker = null; S.focusFirst = true; render(); break;
+      S.picker = null; S.aud = null; S.create = null; S.enrol = null; S.showLink = false; S.focusFirst = true; render(); break;
     }
-    case 'open-ms': S.drawer = { ms: { ...d.milestones.find((m) => m.id === el.dataset.id) } }; S.picker = null; render(); break;
+    case 'open-ms': S.drawer = { ms: { ...d.milestones.find((m) => m.id === el.dataset.id) } }; S.picker = null; S.aud = null; S.create = null; S.enrol = null; S.showLink = false; render(); break;
     case 'save-ms': {
-      const f = formData('msForm');
+      captureForm();
+      const f = { ...formData('msForm'), audience_type: S.drawer.ms.audience_type || '', audience_id: S.drawer.ms.audience_id || '', audience_name: S.drawer.ms.audience_name || '' };
       if (!f.title) return toast(t('title') + '?', true);
       await withBusy(async () => {
         if (S.drawer.ms.id) await call('PUT', '/milestones/' + S.drawer.ms.id, f);
@@ -896,6 +1075,67 @@ document.addEventListener('click', async (e) => {
     case 'del-ms': if (!confirm(t('delMsQ'))) return; await withBusy(async () => { await call('DELETE', '/milestones/' + S.drawer.ms.id); S.drawer = null; await load(d.plan.id); toast(t('deleted')); }); break;
     case 'sync-ms': await withBusy(async () => { await call('POST', '/sync', { plan_id: d.plan.id, milestone_id: S.drawer.ms.id }); await load(d.plan.id); }); break;
     case 'unlink': await withBusy(async () => { await call('DELETE', '/links/' + el.dataset.id); await load(d.plan.id); toast(t('removed')); }); break;
+    case 'aud-open': S.aud = S.aud ? null : { q: '', items: null }; keepDrawerScroll(render); if (S.aud) searchAudiences(''); break;
+    case 'aud-pick': case 'aud-clear': {
+      const x = act === 'aud-pick' ? S.aud.items[+el.dataset.i] : { type: '', id: '', name: '' };
+      Object.assign(S.drawer.ms, { audience_type: x.type, audience_id: x.id, audience_name: x.name, audience_size: null });
+      S.aud = null; S.enrol = null;
+      if (!S.drawer.ms.id) { keepDrawerScroll(render); break; }
+      // Existing milestone: save the audience straight away (server counts its members).
+      await withBusy(async () => {
+        captureForm();
+        const ms = S.drawer.ms;
+        await call('PUT', '/milestones/' + ms.id, { audience_type: ms.audience_type, audience_id: ms.audience_id, audience_name: ms.audience_name });
+        await load(d.plan.id);
+        const fresh = S.data.milestones.find((m) => m.id === ms.id);
+        if (fresh) S.drawer = { ms: { ...fresh, ...pickForm(ms) } };
+        toast(t('saved'));
+      });
+      break;
+    }
+    case 'toggle-link': S.showLink = !S.showLink; keepDrawerScroll(render); break;
+    case 'toggle-create': {
+      if (S.create) { S.create = null; keepDrawerScroll(render); break; }
+      S.create = defaultCreate(S.drawer.ms, S.drawer.ms.id ? msActuals(S.drawer.ms) : null);
+      keepDrawerScroll(render);
+      if (!S.create.course) searchIlt('');
+      break;
+    }
+    case 'cr-mode': S.create.mode = el.dataset.v; keepDrawerScroll(render); if (el.dataset.v === 'existing' && !S.create.course && !S.create.courses) searchIlt(''); break;
+    case 'cr-pick': { const c = S.create.courses[+el.dataset.i]; S.create = { ...S.create, course: c }; keepDrawerScroll(render); break; }
+    case 'cr-unpick': S.create = { ...S.create, course: null }; keepDrawerScroll(render); if (!S.create.courses) searchIlt(''); break;
+    case 'cr-addrow': { const last = S.create.rows[S.create.rows.length - 1]; S.create.rows.push({ ...last }); keepDrawerScroll(render); break; }
+    case 'cr-delrow': S.create.rows.splice(+el.dataset.i, 1); keepDrawerScroll(render); break;
+    case 'cr-go': {
+      const c = S.create, ms = S.drawer.ms;
+      const body = {
+        sessions: c.rows.map((r) => ({ date: r.date, time_begin: r.start, time_end: r.end, max_enroll: +r.seats || 1, timezone: c.tz })),
+        timezone: c.tz, meeting_url: c.url,
+      };
+      if (c.mode === 'new') body.new_course_name = c.newName; else { body.course_id = c.course.id; body.course_name = c.course.name; }
+      await withBusy(async () => {
+        const r = await call('POST', '/milestones/' + ms.id + '/create-sessions', body);
+        await load(d.plan.id);
+        const fresh = S.data.milestones.find((m) => m.id === ms.id);
+        if (fresh) S.drawer = { ms: { ...fresh } };
+        S.create = r.failed.length ? S.create : null;
+        if (r.failed.length) toast(t('createdPartial', { n: r.created.length, f: r.failed.length, e: r.failed[0].error }), true);
+        else toast(t('createdOk', { n: r.created.length }));
+      });
+      break;
+    }
+    case 'en-preview': await withBusy(async () => { S.enrol = await call('POST', '/milestones/' + S.drawer.ms.id + '/enrol', {}); }); break;
+    case 'en-cancel': S.enrol = null; keepDrawerScroll(render); break;
+    case 'en-go': await withBusy(async () => {
+      const ms = S.drawer.ms;
+      const r = await call('POST', '/milestones/' + ms.id + '/enrol', { confirm: true });
+      S.enrol = null;
+      await load(d.plan.id);
+      const fresh = S.data.milestones.find((m) => m.id === ms.id);
+      if (fresh) S.drawer = { ms: { ...fresh } };
+      toast(t('enrolDone', { n: fmt(r.enrolled), a: fmt(r.already) }));
+      if (r.failed_count) toast(t('enrolFail', { f: r.failed_count, e: r.failed[0] }), true);
+    }); break;
     case 'pk-back': S.picker = { ...S.picker, course: null, sessions: null }; keepDrawerScroll(render); break;
     case 'pk-open': {
       const c = S.picker.courses.find((x) => x.id === el.dataset.id);

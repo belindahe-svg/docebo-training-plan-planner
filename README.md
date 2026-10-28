@@ -44,11 +44,20 @@ Plain settings live in `wrangler.toml` (edit on GitHub; each push redeploys):
 
 Docebo signs each load (`user_id`, `username`, `auth_code`, SHA-256 hash); the Worker verifies it, so there is no separate sign-in.
 
-## 4. Nightly sync
+## 4. Plan to Docebo: audience, create and enrol
+
+In a milestone:
+- **Audience (to whom):** pick a Docebo audience (formerly group) or branch. The member count is stored and compared with planned trainees.
+- **Create sessions in Docebo:** use an existing ILT course or create a new one, then one session and event per row (date, times, seats). Docebo requires a venue or a webinar link on each event; venues are out of scope, so events use the meeting link given (default: `DEFAULT_MEETING_URL` in `wrangler.toml`, optional). New sessions are linked to the milestone automatically.
+- **Enrol the audience:** preview, then confirm. Members are split evenly across the milestone's ILT sessions (a course link gets everyone), via `POST /learn/v1/enrollment/batch` (300 per call). Running it again reports people as already enrolled.
+
+API calls used (confirmed from the atalent-025-elevate02 API definition): `GET /audiences/v1/audience`, `GET /audiences/v1/audience/{uuid}/users`, `GET /manage/v1/orgchart`, `GET /manage/v1/orgchart/{id}/users`, `POST /learn/v1/courses`, `POST /course/v1/courses/{id}/sessions`, `POST /course/v1/sessions/{id}/events`, `POST /learn/v1/enrollment/batch`.
+
+## 5. Nightly sync
 
 `wrangler.toml` sets a cron at 18:00 UTC (02:00 Singapore) that refreshes actuals for every plan, stalest links first. The **Sync from Docebo** button does the same on demand.
 
-## 5. Going live with real Docebo data
+## 6. Going live with real Docebo data
 
 1. In Docebo, create a few ILT courses and sessions that match the plan (e.g. an EX750 launch workshop course with sessions in different months, a technician certification course, an e-learning EHS course). Enrol a few test users and mark attendance on a past event.
 2. In `wrangler.toml` set `DEMO_MODE = "0"` and commit. Cloudflare redeploys on its own.
@@ -83,7 +92,7 @@ Completions are read from `enrollment_status = completed` and `enrollment_comple
 
 ---
 
-## 6. Suggested POC demo flow
+## 7. Suggested POC demo flow
 
 1. **Overview**: annual targets fully broken down (100%), YTD delivered vs planned, plan vs actual by month, progress by program. Switch to 中文.
 2. **Monthly breakdown**: each program's annual objective spread across months, colour-coded status per milestone. Filter by region (e.g. Middle East) to show dealer-market view.

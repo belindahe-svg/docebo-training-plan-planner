@@ -173,6 +173,14 @@ async function ensureSchema(env) {
   if (schemaReady) return;
   if (!env.DB) throw new HttpError(500, 'D1 database is not bound. Add a D1 binding named DB.');
   await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s)));
+  // Columns added after the first release; harmless if they already exist.
+  const added = [
+    ['milestones', 'audience_type TEXT'], ['milestones', 'audience_id TEXT'], ['milestones', 'audience_name TEXT'],
+    ['milestones', 'audience_size INTEGER'], ['links', 'created_in_docebo INTEGER DEFAULT 0'], ['links', 'enrol_note TEXT'],
+  ];
+  for (const [table, col] of added) {
+    try { await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${col}`).run(); } catch { /* exists */ }
+  }
   schemaReady = true;
 }
 
@@ -225,15 +233,22 @@ function makeBudget(max) {
 class BudgetError extends Error { constructor() { super('budget'); } }
 
 async function doceboGet(env, path, budget) {
+  return doceboCall(env, 'GET', path, null, budget);
+}
+
+async function doceboCall(env, method, path, body, budget) {
   if (budget) budget.take();
-  if (isDemo(env)) return demoGet(path);
+  if (isDemo(env)) return method === 'GET' ? demoGet(path) : demoWrite(method, path, body);
   const tok = await doceboToken(env);
-  const r = await fetch(doceboBase(env) + path, { headers: { authorization: `Bearer ${tok}`, accept: 'application/json' } });
+  const init = { method, headers: { authorization: `Bearer ${tok}`, accept: 'application/json' } };
+  if (body) { init.body = JSON.stringify(body); init.headers['content-type'] = 'application/json'; }
+  const r = await fetch(doceboBase(env) + path, init);
   const text = await r.text();
   let data;
   try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 500) }; }
   if (!r.ok) {
-    const msg = pick(data, ['message', 'error_description', 'error']) || (Array.isArray(data.message) ? data.message.join('; ') : '') || text.slice(0, 200);
+    let msg = Array.isArray(data.message) ? data.message.map((m) => (typeof m === 'string' ? m : `${m.field || ''} ${m.message || ''}`.trim())).join('; ') : pick(data, ['message', 'error_description', 'error']);
+    msg = msg || text.slice(0, 200);
     throw new HttpError(r.status === 401 ? 502 : r.status, `Docebo ${r.status} on ${path.split('?')[0]}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
   }
   return data;
@@ -394,6 +409,176 @@ async function syncActuals(env, planId, milestoneId) {
   return result;
 }
 
+/* ----------------------------- audiences -------------------------------- */
+// "To whom": a Docebo audience (formerly group) or a branch.
+//   Audiences: GET /audiences/v1/audience, members GET /audiences/v1/audience/{uuid}/users
+//   Branches:  GET /manage/v1/orgchart,   members GET /manage/v1/orgchart/{id}/users
+
+async function searchAudiences(env, q) {
+  const qs = q ? `?search_text=${encodeURIComponent(q)}` : '';
+  const out = [];
+  const errors = [];
+  try {
+    const aud = await doceboItems(env, `/audiences/v1/audience${qs}`, null, 1, 50);
+    for (const a of aud) out.push({ type: 'audience', id: String(pick(a, ['uuid', 'id'])), name: pick(a, ['name']) || 'Audience', note: pick(a, ['type']) || '' });
+  } catch (e) { errors.push(e.message); }
+  try {
+    const br = await doceboItems(env, `/manage/v1/orgchart${qs ? qs + '&' : '?'}flattened=true`, null, 1, 50);
+    for (const b of br) {
+      const id = pick(b, ['id', 'id_org', 'branch_id']);
+      if (id == null) continue;
+      out.push({ type: 'branch', id: String(id), name: pick(b, ['title', 'name', 'code']) || 'Branch', note: pick(b, ['code']) || '' });
+    }
+  } catch (e) { errors.push(e.message); }
+  if (!out.length && errors.length) throw new HttpError(502, errors[0]);
+  return out;
+}
+
+/** Members of an audience or branch, normalised to { user_id, username, name }. */
+async function audienceMembers(env, type, id, budget) {
+  const rows = type === 'branch'
+    ? await doceboItems(env, `/manage/v1/orgchart/${encodeURIComponent(id)}/users`, budget, 10, 200)
+    : await doceboItems(env, `/audiences/v1/audience/${encodeURIComponent(id)}/users`, budget, 10, 200);
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    const uid = String(pick(r, ['user_id', 'idst', 'id']) ?? '');
+    if (!uid || seen.has(uid)) continue;
+    seen.add(uid);
+    const username = String(pick(r, ['username', 'userid']) || '').replace(/^\//, '');
+    const name = `${pick(r, ['first_name', 'firstname', 'firs_name']) || ''} ${pick(r, ['last_name', 'lastname']) || ''}`.trim();
+    out.push({ user_id: uid, username, name: name || username });
+  }
+  return out;
+}
+
+/* ----------------------------- create in Docebo ------------------------- */
+
+function cleanTime(t, d) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}:00` : d;
+}
+
+/**
+ * Create an ILT course (optional), then one session + one event per row, and
+ * link each new session to the milestone. Docebo requires a venue or a
+ * webinar tool on every event; venues are out of scope, so events use the
+ * "custom" webinar tool with the meeting link given.
+ */
+async function createSessions(env, ms, plan, body) {
+  const rows = Array.isArray(body.sessions) ? body.sessions.slice(0, 12) : [];
+  if (!rows.length) throw new HttpError(400, 'Add at least one session.');
+  const meetingUrl = String(body.meeting_url || env.DEFAULT_MEETING_URL || '').trim();
+  if (!/^https?:\/\//i.test(meetingUrl)) throw new HttpError(400, 'A meeting link (https://...) is needed: Docebo requires a venue or a webinar link on every event.');
+  for (const r of rows) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(r.date || ''))) throw new HttpError(400, 'Every session needs a date.');
+  }
+
+  let courseId = body.course_id ? String(body.course_id) : null;
+  let courseName = clampStr(body.course_name || '');
+  const result = { course_id: null, course_created: false, created: [], failed: [] };
+
+  if (!courseId) {
+    const name = clampStr(body.new_course_name || ms.title || 'Training', 200).replace(/[<>]/g, '');
+    const created = await doceboCall(env, 'POST', '/learn/v1/courses', {
+      name, code: clampStr(body.new_course_code || '', 50) || undefined,
+      description: `<p>${name}</p><p>Created by the aTalent Training Plan Planner.</p>`,
+      course_type: 'classroom', type: 'classroom', status: 'published', language: 'english',
+    });
+    courseId = String(pick(created, ['data.course_id', 'data.id', 'course_id']) || '');
+    if (!courseId) throw new HttpError(502, 'Docebo did not return the new course ID.');
+    courseName = name;
+    result.course_created = true;
+  }
+  result.course_id = courseId;
+
+  for (const [i, r] of rows.entries()) {
+    const sessName = clampStr(r.name || `${courseName || ms.title} | ${r.date}`, 200);
+    let sid = null;
+    try {
+      const sess = await doceboCall(env, 'POST', `/course/v1/courses/${encodeURIComponent(courseId)}/sessions`, {
+        name: sessName, description: `Planned under: ${ms.title} (${plan.year}-${String(ms.month).padStart(2, '0')})`,
+        min_enroll: 0, max_enroll: Math.max(1, Math.round(num(r.max_enroll, 20))), evaluation_type: 2,
+      });
+      sid = String(pick(sess, ['data.id_session', 'data.session_id', 'data.id']) || '');
+      if (!sid) throw new Error('Docebo did not return the new session ID.');
+      await doceboCall(env, 'POST', `/course/v1/sessions/${encodeURIComponent(sid)}/events`, {
+        name: sessName, day: r.date,
+        time_begin: cleanTime(r.time_begin, '09:00:00'), time_end: cleanTime(r.time_end, '17:00:00'),
+        timezone: clampStr(r.timezone || body.timezone || 'Asia/Shanghai', 60),
+        webinar_tool: 'custom', custom_url: meetingUrl,
+      });
+      const linkId = uid();
+      await insertRow(env, 'links', {
+        id: linkId, plan_id: ms.plan_id, milestone_id: ms.id, item_type: 'session', course_id: courseId, session_id: sid,
+        name: sessName, course_name: courseName, course_type: 'classroom', created_in_docebo: 1, created_at: now(),
+      });
+      result.created.push({ session_id: sid, name: sessName, date: r.date });
+    } catch (e) {
+      result.failed.push({ row: i + 1, name: sessName, session_id: sid, error: e.message });
+    }
+  }
+  return result;
+}
+
+/* ----------------------------- enrol audience --------------------------- */
+
+/**
+ * Who goes where: audience members are split evenly across the milestone's
+ * linked ILT sessions (in date order); a course link gets everyone.
+ */
+async function enrolmentPlan(env, ms) {
+  if (!ms.audience_type || !ms.audience_id) throw new HttpError(400, 'Choose an audience for this milestone first.');
+  const links = await all(env, 'SELECT * FROM links WHERE milestone_id = ? ORDER BY COALESCE(first_date, \'9999\'), created_at', ms.id);
+  if (!links.length) throw new HttpError(400, 'Link or create the Docebo sessions for this milestone first.');
+  const members = await audienceMembers(env, ms.audience_type, ms.audience_id);
+  const sessions = links.filter((l) => l.item_type === 'session');
+  const courses = links.filter((l) => l.item_type !== 'session');
+  const targets = [];
+  if (sessions.length) {
+    const per = Math.ceil(members.length / sessions.length);
+    sessions.forEach((l, i) => targets.push({ link: l, users: members.slice(i * per, (i + 1) * per) }));
+  }
+  for (const l of courses) targets.push({ link: l, users: members });
+  return { members, targets };
+}
+
+async function enrolAudience(env, ms, execute) {
+  const { members, targets } = await enrolmentPlan(env, ms);
+  const summary = {
+    audience: ms.audience_name, members: members.length,
+    targets: targets.map((t) => ({ link_id: t.link.id, name: t.link.name, type: t.link.item_type, count: t.users.length, sample: t.users.slice(0, 5).map((u) => u.name) })),
+  };
+  if (!execute) return { preview: true, ...summary };
+
+  let enrolled = 0, already = 0;
+  const failed = [];
+  for (const t of targets) {
+    for (let i = 0; i < t.users.length; i += 300) {
+      const chunk = t.users.slice(i, i + 300);
+      const items = chunk.map((u, k) => {
+        const it = { course_id: Number(t.link.course_id), user_id: String(u.user_id), level: 'student', batch_item_id: `${i + k}` };
+        if (t.link.item_type === 'session') it.session_id = Number(t.link.session_id);
+        return it;
+      });
+      const r = await doceboCall(env, 'POST', '/learn/v1/enrollment/batch', {
+        items, options: { status: 'subscribed', level: 'student', enrollment_date_now: true, enable_waitinglist: false, trigger_notifications: true },
+        trigger_gamification: false,
+      });
+      const rows = Array.isArray(pick(r, ['data'])) ? r.data : [];
+      if (!rows.length) { enrolled += chunk.length; continue; }
+      for (const row of rows) {
+        if (row.success !== false) { enrolled++; continue; }
+        const msg = String(row.message || row.error_code || row.error || 'unknown error');
+        if (/already|exist|duplicate/i.test(msg)) already++;
+        else failed.push(`${chunk[Number(row.batch_item_id) - i]?.name || 'user'}: ${msg}`);
+      }
+    }
+    await run(env, 'UPDATE links SET enrol_note = ? WHERE id = ?', `Enrolled ${t.users.length} from ${ms.audience_name} on ${todayStr()}`, t.link.id);
+  }
+  return { preview: false, ...summary, enrolled, already, failed: failed.slice(0, 10), failed_count: failed.length };
+}
+
 /* ----------------------------- plan data -------------------------------- */
 
 async function planState(env, planId) {
@@ -411,7 +596,7 @@ async function planState(env, planId) {
 }
 
 const PROGRAM_FIELDS = ['name', 'name_zh', 'objective', 'objective_zh', 'target_sessions', 'target_trainees', 'owner', 'color', 'sort'];
-const MILESTONE_FIELDS = ['program_id', 'month', 'title', 'title_zh', 'planned_sessions', 'planned_trainees', 'region', 'delivery', 'notes'];
+const MILESTONE_FIELDS = ['program_id', 'month', 'title', 'title_zh', 'planned_sessions', 'planned_trainees', 'region', 'delivery', 'notes', 'audience_type', 'audience_id', 'audience_name'];
 const INT_FIELDS = new Set(['target_sessions', 'target_trainees', 'color', 'sort', 'month', 'planned_sessions', 'planned_trainees', 'year']);
 
 function cleanFields(body, fields) {
@@ -422,6 +607,15 @@ function cleanFields(body, fields) {
   }
   if ('month' in out && (out.month < 1 || out.month > 12)) throw new HttpError(400, 'month must be 1 to 12.');
   return out;
+}
+
+/** When a milestone's audience is set, store its current member count. */
+async function audienceSize(env, b) {
+  if (!('audience_id' in b)) return {};
+  if (!b.audience_id) return { audience_type: '', audience_id: '', audience_name: '', audience_size: null };
+  const type = b.audience_type === 'branch' ? 'branch' : 'audience';
+  try { return { audience_type: type, audience_size: (await audienceMembers(env, type, String(b.audience_id))).length }; }
+  catch { return { audience_type: type, audience_size: null }; }
 }
 
 async function insertRow(env, table, row) {
@@ -616,6 +810,75 @@ function demoCatalog() {
   return demoCache;
 }
 
+const DEMO_AUDIENCES = [
+  { type: 'audience', id: 'aud-sea-tech', name: 'SEA Dealer Technicians', size: 36 },
+  { type: 'audience', id: 'aud-cn-svc', name: 'China Service Engineers', size: 48 },
+  { type: 'audience', id: 'aud-me-sales', name: 'Middle East Dealer Sales', size: 22 },
+  { type: 'audience', id: 'aud-rental-ops', name: 'Rental Partner Operators', size: 60 },
+  { type: 'branch', id: '201', name: 'Dealers / Southeast Asia', size: 54 },
+  { type: 'branch', id: '202', name: 'Dealers / Africa', size: 31 },
+  { type: 'branch', id: '203', name: 'Plant / EHS Staff', size: 300 },
+];
+const DEMO_NAMES = ['Arif Rahman', 'Siti Aminah', 'Nguyen Van An', 'Tran Thi Mai', 'Somchai P.', 'Maria Santos', 'Li Wei', 'Zhang Hua', 'Wang Fang', 'Ahmed Hassan', 'Fatima Noor', 'Kwame Mensah', 'Amara Okafor', 'Carlos Rivera', 'Ana Souza'];
+function demoMembers(id) {
+  const a = DEMO_AUDIENCES.find((x) => x.id === String(id));
+  const base = (DEMO_AUDIENCES.indexOf(a) + 1) * 10000;
+  return Array.from({ length: a ? a.size : 0 }, (_, i) => ({ user_id: 80000 + base + i, username: `demo.user${base + i}`, first_name: DEMO_NAMES[i % DEMO_NAMES.length].split(' ')[0], last_name: DEMO_NAMES[i % DEMO_NAMES.length].split(' ').slice(1).join(' ') + ` ${i + 1}` }));
+}
+
+function demoWrite(method, path, body) {
+  const cat = demoCatalog();
+  const u = new URL(path, 'https://demo.local');
+  let m;
+  const id = () => String(900000 + Math.floor(Math.random() * 99999));
+  if (method === 'POST' && u.pathname === '/learn/v1/courses') {
+    const cid = id();
+    cat.courses.push({ id_course: cid, name: body.name, code: body.code || '', course_type: 'classroom' });
+    cat.sessions.set(cid, []);
+    return { data: { course_id: Number(cid), success: true } };
+  }
+  if (method === 'POST' && (m = u.pathname.match(/^\/course\/v1\/courses\/(\d+)\/sessions$/))) {
+    if (!cat.sessions.has(m[1])) throw new HttpError(404, 'Course not found');
+    const sid = id();
+    cat.sessions.get(m[1]).push({ id: sid, name: body.name });
+    cat.events.set(sid, []);
+    return { data: { id_session: Number(sid) } };
+  }
+  if (method === 'POST' && (m = u.pathname.match(/^\/course\/v1\/sessions\/(\d+)\/events$/))) {
+    const eid = id();
+    const evs = cat.events.get(m[1]) || [];
+    evs.push({ id: eid, name: body.name, schedule: { date: body.day, time_begin: body.time_begin, time_end: body.time_end } });
+    cat.events.set(m[1], evs);
+    cat.attendance.set(eid, []);
+    for (const s of cat.sessions.values()) { const ss = s.find((x) => x.id === m[1]); if (ss && !ss.date_start) ss.date_start = `${body.day} ${body.time_begin}`; }
+    return { data: { event_id: Number(eid) } };
+  }
+  if (method === 'POST' && u.pathname === '/learn/v1/enrollment/batch') {
+    const out = [];
+    for (const it of body.items || []) {
+      if (it.session_id) {
+        const evs = cat.events.get(String(it.session_id)) || [];
+        let dup = false;
+        for (const ev of evs) {
+          const list = cat.attendance.get(ev.id) || [];
+          if (list.some((a) => String(a.user_id) === String(it.user_id))) dup = true;
+          else list.push({ user_id: Number(it.user_id), status_id: null, time: 0 });
+          cat.attendance.set(ev.id, list);
+        }
+        out.push(dup ? { batch_item_id: it.batch_item_id, success: false, message: 'User already enrolled' } : { batch_item_id: it.batch_item_id, success: true });
+      } else {
+        const list = cat.enrollments.get(String(it.course_id)) || [];
+        if (list.some((a) => String(a.user_id) === String(it.user_id))) { out.push({ batch_item_id: it.batch_item_id, success: false, message: 'User already enrolled' }); continue; }
+        list.push({ user_id: Number(it.user_id), enrollment_status: 'subscribed' });
+        cat.enrollments.set(String(it.course_id), list);
+        out.push({ batch_item_id: it.batch_item_id, success: true });
+      }
+    }
+    return { data: out };
+  }
+  throw new HttpError(404, `Demo catalog cannot ${method} ${u.pathname}`);
+}
+
 function demoGet(path) {
   const cat = demoCatalog();
   const u = new URL(path, 'https://demo.local');
@@ -631,6 +894,11 @@ function demoGet(path) {
   if ((m = u.pathname.match(/^\/course\/v1\/sessions\/(\d+)\/events$/))) return paged(cat.events.get(m[1]) || []);
   if ((m = u.pathname.match(/^\/course\/v1\/events\/(\d+)\/attendance$/))) return paged(cat.attendance.get(m[1]) || []);
   if (u.pathname === '/course/v1/courses/enrollments') return paged(cat.enrollments.get(u.searchParams.get('course_id[]')) || []);
+  const q = (u.searchParams.get('search_text') || '').toLowerCase();
+  if (u.pathname === '/audiences/v1/audience') return paged(DEMO_AUDIENCES.filter((a) => a.type === 'audience' && (!q || a.name.toLowerCase().includes(q))).map((a) => ({ uuid: a.id, name: a.name, type: 'manual' })));
+  if (u.pathname === '/manage/v1/orgchart') return paged(DEMO_AUDIENCES.filter((a) => a.type === 'branch' && (!q || a.name.toLowerCase().includes(q))).map((a) => ({ id: Number(a.id), title: a.name, code: a.name.split('/').pop().trim().toUpperCase().replace(/\W+/g, '-') })));
+  if ((m = u.pathname.match(/^\/audiences\/v1\/audience\/([\w-]+)\/users$/))) return paged(demoMembers(m[1]).map((x) => ({ idst: String(x.user_id), userid: '/' + x.username, firstname: x.first_name, lastname: x.last_name })));
+  if ((m = u.pathname.match(/^\/manage\/v1\/orgchart\/(\d+)\/users$/))) return paged(demoMembers(m[1]));
   throw new HttpError(404, `Demo catalog has no data for ${u.pathname}`);
 }
 
@@ -665,7 +933,7 @@ async function serveApp(env, url) {
     reason = h.reason;
   }
   if (user) token = await issueToken(env, user);
-  const boot = { token, user, reason, mode: isDemo(env) ? 'demo' : 'live', domain: isDemo(env) ? null : String(env.DOCEBO_DOMAIN || '') };
+  const boot = { token, user, reason, mode: isDemo(env) ? 'demo' : 'live', domain: isDemo(env) ? null : String(env.DOCEBO_DOMAIN || ''), meetingUrl: String(env.DEFAULT_MEETING_URL || '') };
   const html = APP_HTML.replace('/*__BOOT__*/null', () => JSON.stringify(boot).replace(/</g, '\\u003c'));
   return new Response(html, {
     headers: {
@@ -742,11 +1010,27 @@ async function api(req, env, url) {
     const b = await readBody(req);
     if (!b.plan_id || !b.program_id || !b.month) throw new HttpError(400, 'plan_id, program_id and month are required.');
     const id = uid();
-    await insertRow(env, 'milestones', { id, plan_id: clampStr(b.plan_id), ...cleanFields(b, MILESTONE_FIELDS), updated_at: now() });
+    await insertRow(env, 'milestones', { id, plan_id: clampStr(b.plan_id), ...cleanFields(b, MILESTONE_FIELDS), ...(await audienceSize(env, b)), updated_at: now() });
     return json({ id });
   }
+  if ((m = p.match(/^\/milestones\/(\w+)\/create-sessions$/)) && method === 'POST') {
+    const ms = await first(env, 'SELECT * FROM milestones WHERE id = ?', m[1]);
+    if (!ms) throw new HttpError(404, 'Milestone not found.');
+    const plan = await first(env, 'SELECT * FROM plans WHERE id = ?', ms.plan_id);
+    const result = await createSessions(env, ms, plan, await readBody(req));
+    const sync = result.created.length ? await syncActuals(env, ms.plan_id, ms.id) : null;
+    return json({ ...result, sync });
+  }
+  if ((m = p.match(/^\/milestones\/(\w+)\/enrol$/)) && method === 'POST') {
+    const ms = await first(env, 'SELECT * FROM milestones WHERE id = ?', m[1]);
+    if (!ms) throw new HttpError(404, 'Milestone not found.');
+    const b = await readBody(req);
+    const r = await enrolAudience(env, ms, b.confirm === true);
+    if (!r.preview) r.sync = await syncActuals(env, ms.plan_id, ms.id);
+    return json(r);
+  }
   if ((m = p.match(/^\/milestones\/(\w+)$/))) {
-    if (method === 'PUT') { await updateRow(env, 'milestones', m[1], { ...cleanFields(await readBody(req), MILESTONE_FIELDS), updated_at: now() }); return json({ ok: true }); }
+    if (method === 'PUT') { const b = await readBody(req); await updateRow(env, 'milestones', m[1], { ...cleanFields(b, MILESTONE_FIELDS), ...(await audienceSize(env, b)), updated_at: now() }); return json({ ok: true }); }
     if (method === 'DELETE') {
       await env.DB.batch([env.DB.prepare('DELETE FROM links WHERE milestone_id = ?').bind(m[1]), env.DB.prepare('DELETE FROM milestones WHERE id = ?').bind(m[1])]);
       return json({ ok: true });
@@ -781,6 +1065,7 @@ async function api(req, env, url) {
     return json(await syncActuals(env, b.plan_id, b.milestone_id || null));
   }
 
+  if (p === '/docebo/audiences' && method === 'GET') return json({ items: await searchAudiences(env, url.searchParams.get('q') || '') });
   if (p === '/docebo/courses' && method === 'GET') return json({ items: await searchCourses(env, url.searchParams.get('q') || '') });
   if (p === '/docebo/sessions' && method === 'GET') {
     const cid = url.searchParams.get('course_id');
