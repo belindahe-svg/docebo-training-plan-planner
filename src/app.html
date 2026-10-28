@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training Plan Planner</title>
+<style>
+:root {
+  --page: #f6f6f3;
+  --surface: #ffffff;
+  --surface-2: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --line: #e4e3dc;
+  --line-2: #c3c2b7;
+  --accent: #1c5cab;
+  --accent-soft: #e7f0fc;
+  --good: #0ca30c; --good-ink: #006300; --good-soft: #e5f5e5;
+  --warn: #fab219; --warn-ink: #7a5200; --warn-soft: #fff4dc;
+  --serious: #ec835a; --serious-ink: #9a3d17; --serious-soft: #fdeee7;
+  --crit: #d03b3b; --crit-ink: #a12a2a; --crit-soft: #fbe9e9;
+  --info: #2a78d6; --info-soft: #e7f0fc;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(11,11,11,.06), 0 4px 16px rgba(11,11,11,.06);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); font-size: 14px; line-height: 1.45; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.hidden { display: none !important; }
+
+/* header */
+.top { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+.brand-title { font-weight: 650; font-size: 15px; white-space: nowrap; }
+.brand-sub { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.spacer { flex: 1; }
+.plan-pick { display: flex; align-items: center; gap: 6px; }
+select, input[type=text], input[type=number], input[type=search], textarea {
+  border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); padding: 6px 10px; min-height: 34px;
+}
+textarea { min-height: 70px; resize: vertical; width: 100%; }
+select:focus, input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn { border: 1px solid var(--line-2); background: var(--surface); border-radius: 8px; padding: 6px 12px; min-height: 34px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #184f95; }
+.btn.danger { color: var(--crit-ink); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.small { padding: 3px 8px; min-height: 28px; font-size: 13px; }
+.btn[disabled] { opacity: .55; cursor: default; }
+.lang { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; }
+.lang button { border: 0; background: transparent; padding: 6px 10px; min-height: 32px; }
+.lang button.on { background: var(--ink); color: #fff; }
+.mode { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2); white-space: nowrap; }
+.mode b { color: var(--ink); font-weight: 600; }
+.sync-meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.tabs { display: flex; gap: 4px; padding: 0 20px; overflow-x: auto; }
+.tab { border: 0; background: transparent; padding: 10px 12px; border-bottom: 2px solid transparent; color: var(--ink-2); white-space: nowrap; }
+.tab.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.tab .count { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--serious-soft); color: var(--serious-ink); font-size: 11px; font-weight: 600; margin-left: 4px; }
+
+main { padding: 20px; max-width: 1480px; margin: 0 auto; }
+.section-title { font-size: 13px; font-weight: 650; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; margin: 24px 0 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.plan-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.plan-head h1 { font-size: 22px; margin: 0; font-weight: 650; }
+.plan-head .year { color: var(--muted); font-size: 15px; }
+
+/* KPI tiles */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+.kpi { padding: 14px 16px; }
+.kpi .label { color: var(--ink-2); font-size: 12.5px; }
+.kpi .value { font-size: 26px; font-weight: 650; margin-top: 2px; }
+.kpi .value small { font-size: 14px; color: var(--muted); font-weight: 500; }
+.kpi .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.meter { height: 6px; border-radius: 3px; background: #eceae4; margin-top: 10px; overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+
+/* chart */
+.chart-card { padding: 16px; margin-top: 12px; }
+.chart-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.chart-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 4px 10px; font-size: 13px; min-height: 30px; }
+.seg button.on { background: var(--ink); color: #fff; }
+.legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--ink-2); flex-wrap: wrap; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw.line { height: 3px; border-radius: 2px; }
+.chart-wrap { position: relative; }
+.chart-wrap svg { display: block; width: 100%; height: auto; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; padding: 6px 9px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -100%); z-index: 5; }
+
+/* program table */
+.ptable { width: 100%; border-collapse: collapse; }
+.ptable th, .ptable td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ptable th { font-size: 12px; color: var(--ink-2); font-weight: 600; background: var(--surface-2); }
+.ptable td.num, .ptable th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ptable tr:last-child td { border-bottom: 0; }
+.pname { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; }
+.pobj { font-size: 12.5px; color: var(--ink-2); font-weight: 400; margin-top: 2px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin-top: 5px; }
+.bar2 { width: 140px; }
+.bar2 .meter { margin-top: 4px; }
+.flag { font-size: 12px; color: var(--serious-ink); }
+
+/* breakdown grid */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.grid-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.grid { display: grid; grid-template-columns: 240px repeat(12, minmax(92px, 1fr)); min-width: 1344px; }
+.gh { position: sticky; top: 0; background: var(--surface-2); font-size: 12px; font-weight: 600; color: var(--ink-2); padding: 8px 8px; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); text-align: center; }
+.gh:first-child { text-align: left; border-left: 0; padding-left: 14px; }
+.gh.now { color: var(--accent); background: var(--accent-soft); }
+.rowhead { padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--line); position: sticky; left: 0; background: var(--surface); z-index: 2; }
+.rowhead .pname { font-size: 13px; }
+.rowhead .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.rowhead .edit { margin-top: 6px; }
+.cell { border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); padding: 6px; min-height: 88px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.cell.now { background: #fafcff; }
+.cell .add { opacity: 0; border: 1px dashed var(--line-2); background: transparent; border-radius: 8px; color: var(--muted); font-size: 18px; line-height: 1; min-height: 30px; flex: 1; }
+.cell:hover .add, .cell .add:focus { opacity: 1; }
+.chip { border: 1px solid var(--line); border-left: 3px solid var(--c, var(--s1)); border-radius: 8px; background: var(--surface); padding: 6px 7px; text-align: left; width: 100%; display: flex; flex-direction: column; gap: 3px; }
+.chip:hover { border-color: var(--line-2); box-shadow: var(--shadow); }
+.chip .t { font-size: 11.5px; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.chip .n { font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; display: flex; gap: 8px; flex-wrap: wrap; }
+.chip .r { font-size: 11px; color: var(--muted); }
+
+/* status pills */
+.st { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; white-space: nowrap; width: fit-content; }
+.st i { font-style: normal; font-size: 10px; }
+.st.done { background: var(--good-soft); color: var(--good-ink); }
+.st.ontrack { background: var(--info-soft); color: #1c5cab; }
+.st.atrisk { background: var(--warn-soft); color: var(--warn-ink); }
+.st.behind { background: var(--crit-soft); color: var(--crit-ink); }
+.st.unlinked { background: var(--serious-soft); color: var(--serious-ink); }
+.st.planned { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+.status-legend { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* alignment */
+.find { display: flex; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); align-items: flex-start; }
+.find:last-child { border-bottom: 0; }
+.find-ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.find .ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.find .body { flex: 1; min-width: 0; }
+.find .h { font-weight: 600; }
+.find .d { font-size: 13px; color: var(--ink-2); }
+.group-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); font-weight: 600; border-radius: var(--radius) var(--radius) 0 0; }
+.group-h .n { color: var(--muted); font-weight: 500; }
+.ok-box { padding: 14px; color: var(--good-ink); }
+
+/* drawer + modal */
+.scrim { position: fixed; inset: 0; background: rgba(11,11,11,.32); z-index: 40; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--surface); z-index: 41; box-shadow: -8px 0 32px rgba(0,0,0,.15); display: flex; flex-direction: column; }
+.drawer-head { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; gap: 10px; }
+.drawer-head h2 { margin: 0; font-size: 17px; font-weight: 650; }
+.drawer-head .sub { font-size: 12.5px; color: var(--muted); }
+.drawer-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+.drawer-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); font-weight: 500; }
+.form label.full { grid-column: 1 / -1; }
+.form input, .form select { width: 100%; }
+.sub-h { display: flex; align-items: center; gap: 8px; margin: 22px 0 10px; }
+.sub-h h4 { margin: 0; font-size: 14px; font-weight: 650; }
+.actual-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.actual-strip > div { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.actual-strip .l { font-size: 11.5px; color: var(--ink-2); }
+.actual-strip .v { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.actual-strip .v small { font-size: 12px; color: var(--muted); font-weight: 500; }
+.link { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 10px; }
+.link .body { flex: 1; min-width: 0; }
+.link .nm { font-weight: 600; font-size: 13px; word-break: break-word; }
+.link .meta { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+.link .note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.link .warn { font-size: 12px; color: var(--serious-ink); margin-top: 2px; }
+.badge { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; padding: 1px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; margin-right: 6px; }
+.badge.course { background: #efeafc; color: #4a3aa7; }
+.picker { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--surface-2); }
+.picker .row { display: flex; gap: 8px; }
+.picker .row input { flex: 1; }
+.plist { max-height: 260px; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.pitem { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 9px; text-align: left; display: flex; gap: 8px; align-items: center; }
+.pitem:hover { border-color: var(--accent); }
+.pitem .nm { flex: 1; min-width: 0; }
+.pitem .x { font-size: 12px; color: var(--muted); }
+.crumb { font-size: 12.5px; margin-top: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.modal { position: fixed; z-index: 41; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(620px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; background: var(--surface); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.modal .drawer-head, .modal .drawer-foot { position: sticky; background: var(--surface); }
+.modal .drawer-head { top: 0; } .modal .drawer-foot { bottom: 0; }
+.colors { display: flex; gap: 6px; flex-wrap: wrap; }
+.colors button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; }
+.colors button.on { border-color: var(--ink); box-shadow: inset 0 0 0 2px #fff; }
+
+.empty { text-align: center; padding: 60px 20px; }
+.empty h2 { margin: 0 0 6px; font-size: 20px; }
+.empty p { color: var(--ink-2); max-width: 520px; margin: 0 auto 18px; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 9px 14px; border-radius: 8px; z-index: 60; font-size: 13px; max-width: calc(100% - 32px); }
+.toast.err { background: var(--crit); }
+.spin { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; display: inline-block; animation: sp .7s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+.blocked { max-width: 520px; margin: 80px auto; padding: 24px; text-align: center; }
+
+@media (max-width: 720px) {
+  main { padding: 14px; }
+  .top-row { padding: 10px 14px; }
+  .tabs { padding: 0 10px; }
+  .form { grid-template-columns: 1fr; }
+  .brand-sub { display: none; }
+  .ptable .hide-sm { display: none; }
+  .plan-pick { width: 100%; }
+  .plan-pick select { flex: 1; min-width: 0; }
+  .bar2 { width: 80px; }
+  .chart-wrap { overflow-x: auto; }
+  .chart-wrap svg { min-width: 640px; }
+  .plan-head h1 { font-size: 19px; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const BOOT = /*__BOOT__*/null;
+
+/* --------------------------- i18n --------------------------- */
+const T = {
+  en: {
+    app: 'Training Plan Planner', appSub: 'Annual plan to monthly execution, tracked against Docebo',
+    overview: 'Overview', breakdown: 'Monthly breakdown', alignment: 'Alignment check',
+    sync: 'Sync from Docebo', syncing: 'Syncing...', synced: 'Synced', never: 'Not synced yet',
+    demo: 'Demo data', live: 'Live',
+    newPlan: 'New plan', planName: 'Plan name', planNameZh: 'Plan name (Chinese)', year: 'Year',
+    export: 'Export CSV', deletePlan: 'Delete plan',
+    emptyH: 'No training plan yet', emptyP: 'Start from a construction machinery sample plan (five programs, monthly milestones), or create a blank plan and break it down yourself.',
+    seed: 'Create sample plan', blank: 'Create blank plan',
+    kSessions: 'Sessions delivered (YTD)', kTrainees: 'Trainees trained (YTD)', kCoverage: 'Annual targets broken down', kAttention: 'Milestones needing attention',
+    ofPlanned: 'of {n} planned to date', vsTarget: '{a} of {b} target sessions and trainees planned', attentionSub: 'Not linked, at risk or behind plan',
+    chartT: 'Plan vs actual by month', sessions: 'Sessions', trainees: 'Trainees',
+    planned: 'Planned', actual: 'Actual', scheduled: 'Scheduled in Docebo', delivered: 'Delivered',
+    programs: 'Programs and annual objectives', program: 'Program', target: 'Annual target', inPlan: 'Broken down', progress: 'Progress',
+    sessShort: 'sess.', traineesShort: 'trainees',
+    allRegions: 'All regions', addProgram: 'Add program', edit: 'Edit',
+    targetSessions: 'Target sessions', targetTrainees: 'Target trainees',
+    planCovers: 'Breakdown: {s} sessions, {t} trainees',
+    mismatch: 'Breakdown differs from annual target',
+    st_done: 'Delivered', st_ontrack: 'On track', st_atrisk: 'At risk', st_behind: 'Behind plan', st_unlinked: 'Not linked', st_planned: 'Planned',
+    msNew: 'New milestone', msEdit: 'Milestone', title: 'Milestone title', titleZh: 'Title (Chinese)', month: 'Month',
+    plannedSessions: 'Planned sessions', plannedTrainees: 'Planned trainees', region: 'Region / dealer market', delivery: 'Delivery format', notes: 'Notes',
+    save: 'Save', cancel: 'Cancel', del: 'Delete', close: 'Close',
+    linked: 'Linked Docebo items', linkItem: 'Link a Docebo course or ILT session', search: 'Search Docebo courses', searchBtn: 'Search',
+    linkCourse: 'Link whole course', pickSession: 'Pick an ILT session', back: 'Back', noResults: 'No results',
+    noLinks: 'Nothing linked yet. Link the ILT sessions or courses that deliver this milestone so actuals can be tracked.',
+    remove: 'Remove', syncMs: 'Refresh actuals',
+    aSched: 'Sessions scheduled', aDeliv: 'Sessions delivered', aTrain: 'Trainees (attended or completed)',
+    enrolled: 'enrolled', attended: 'attended', completedM: 'completed this month', dates: 'Dates',
+    outside: 'Runs in {m}, outside the planned month',
+    progName: 'Program name', progNameZh: 'Program name (Chinese)', objective: 'Annual objective', objectiveZh: 'Objective (Chinese)', owner: 'Owner', color: 'Color',
+    newProgram: 'New program', delProgramQ: 'Delete this program and all its milestones?', delMsQ: 'Delete this milestone?', delPlanQ: 'Delete this whole plan? This cannot be undone.',
+    f_target: 'Annual target vs monthly breakdown', f_target_d: '{p}: breakdown plans {a} {u}, the annual target is {b}.',
+    f_unlinked: 'Milestones not linked to Docebo', f_unlinked_d: 'Due {m}. Nothing in Docebo delivers this milestone yet.',
+    f_outside: 'Docebo sessions outside the planned month', f_outside_d: '{n} is planned for {m} but runs in {r}.',
+    f_behind: 'Past milestones below plan', f_behind_d: '{m}: {a} of {b} sessions delivered, {c} of {d} trainees.', f_behind_t: '{m}: {c} of {d} trainees completed.',
+    f_short: 'Upcoming milestones not fully scheduled', f_short_d: '{m}: {a} of {b} planned sessions exist in Docebo.',
+    allGood: 'Everything in this group is aligned.',
+    saved: 'Saved', linkedOk: 'Linked and synced', removed: 'Removed', deleted: 'Deleted',
+    syncDone: 'Synced {n} items', syncPartial: 'Synced {n} items, {p} left. Sync again to continue.',
+    blockedH: 'Open this page from Docebo', blocked_reason: 'This planner signs you in through the Docebo Iframe widget. Open it from its Docebo page.',
+    notAllowed: 'Your Docebo account is not on the list of planners for this app.',
+    months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    monthsLong: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+    deliveries: ['Classroom', 'Hands-on workshop', 'Classroom + machine practice', 'Virtual classroom', 'E-learning', 'Blended'],
+    regions: ['China', 'Southeast Asia', 'Middle East', 'Africa', 'Latin America', 'Europe', 'Global'],
+    of: 'of', none: 'None', loading: 'Loading...',
+  },
+  zh: {
+    app: '培训计划分解', appSub: '年度计划分解至月度执行，并与Docebo实际数据对照',
+    overview: '总览', breakdown: '月度分解', alignment: '一致性检查',
+    sync: '从Docebo同步', syncing: '同步中...', synced: '已同步', never: '尚未同步',
+    demo: '演示数据', live: '实时',
+    newPlan: '新建计划', planName: '计划名称', planNameZh: '计划名称（中文）', year: '年度',
+    export: '导出CSV', deletePlan: '删除计划',
+    emptyH: '暂无培训计划', emptyP: '可从工程机械行业示例计划开始（五个项目及月度里程碑），也可新建空白计划自行分解。',
+    seed: '创建示例计划', blank: '创建空白计划',
+    kSessions: '已交付场次（年初至今）', kTrainees: '已培训人数（年初至今）', kCoverage: '年度目标分解覆盖率', kAttention: '需关注的里程碑',
+    ofPlanned: '截至目前计划 {n}', vsTarget: '已分解 {a} / 目标 {b}（场次与人数）', attentionSub: '未关联、有风险或落后于计划',
+    chartT: '月度计划与实际对比', sessions: '场次', trainees: '人数',
+    planned: '计划', actual: '实际', scheduled: 'Docebo已排期', delivered: '已交付',
+    programs: '培训项目与年度目标', program: '项目', target: '年度目标', inPlan: '已分解', progress: '进度',
+    sessShort: '场', traineesShort: '人',
+    allRegions: '全部区域', addProgram: '新增项目', edit: '编辑',
+    targetSessions: '目标场次', targetTrainees: '目标人数',
+    planCovers: '已分解：{s} 场，{t} 人',
+    mismatch: '分解合计与年度目标不一致',
+    st_done: '已完成', st_ontrack: '正常', st_atrisk: '有风险', st_behind: '落后', st_unlinked: '未关联', st_planned: '已计划',
+    msNew: '新建里程碑', msEdit: '里程碑', title: '里程碑名称', titleZh: '名称（中文）', month: '月份',
+    plannedSessions: '计划场次', plannedTrainees: '计划人数', region: '区域 / 经销商市场', delivery: '交付形式', notes: '备注',
+    save: '保存', cancel: '取消', del: '删除', close: '关闭',
+    linked: '已关联的Docebo内容', linkItem: '关联Docebo课程或ILT场次', search: '搜索Docebo课程', searchBtn: '搜索',
+    linkCourse: '关联整门课程', pickSession: '选择ILT场次', back: '返回', noResults: '无结果',
+    noLinks: '尚未关联。请关联交付此里程碑的ILT场次或课程，以便追踪实际完成情况。',
+    remove: '移除', syncMs: '刷新实际数据',
+    aSched: '已排期场次', aDeliv: '已交付场次', aTrain: '已培训人数（出勤或完成）',
+    enrolled: '已报名', attended: '已出勤', completedM: '本月完成', dates: '日期',
+    outside: '实际在{m}举行，不在计划月份',
+    progName: '项目名称', progNameZh: '项目名称（中文）', objective: '年度目标', objectiveZh: '年度目标（中文）', owner: '负责人', color: '颜色',
+    newProgram: '新建项目', delProgramQ: '确定删除该项目及其全部里程碑？', delMsQ: '确定删除该里程碑？', delPlanQ: '确定删除整个计划？此操作无法撤销。',
+    f_target: '年度目标与月度分解', f_target_d: '{p}：月度分解合计 {a} {u}，年度目标为 {b}。',
+    f_unlinked: '未关联Docebo的里程碑', f_unlinked_d: '计划于{m}。Docebo中尚无交付此里程碑的内容。',
+    f_outside: '不在计划月份的Docebo场次', f_outside_d: '{n} 计划于{m}，实际在{r}举行。',
+    f_behind: '已过期且未达计划的里程碑', f_behind_d: '{m}：已交付 {a}/{b} 场，已培训 {c}/{d} 人。', f_behind_t: '{m}：已完成 {c}/{d} 人。',
+    f_short: '尚未完全排期的近期里程碑', f_short_d: '{m}：Docebo中已有 {a}/{b} 个计划场次。',
+    allGood: '该组全部一致。',
+    saved: '已保存', linkedOk: '已关联并同步', removed: '已移除', deleted: '已删除',
+    syncDone: '已同步 {n} 项', syncPartial: '已同步 {n} 项，剩余 {p} 项，请再次同步。',
+    blockedH: '请从Docebo中打开此页面', blocked_reason: '本应用通过Docebo iFrame组件识别登录身份，请从对应的Docebo页面打开。',
+    notAllowed: '您的Docebo账号不在本应用的授权名单中。',
+    months: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+    monthsLong: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+    deliveries: ['课堂培训', '实操工作坊', '课堂+整机实操', '虚拟课堂', '在线学习', '混合式'],
+    regions: ['中国', '东南亚', '中东', '非洲', '拉丁美洲', '欧洲', '全球'],
+    of: '/', none: '无', loading: '加载中...',
+  },
+};
+// Stored values are English; these map them for display in Chinese.
+const VALUE_MAP = {};
+T.en.deliveries.forEach((v, i) => (VALUE_MAP[v] = T.zh.deliveries[i]));
+T.en.regions.forEach((v, i) => (VALUE_MAP[v] = T.zh.regions[i]));
+
+let lang = 'en';
+try { const saved = localStorage.getItem('tpp-lang'); lang = saved || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'); } catch (e) {}
+const t = (k, vars) => {
+  let s = (T[lang] && T[lang][k]) ?? T.en[k] ?? k;
+  if (vars && typeof s === 'string') for (const [a, b] of Object.entries(vars)) s = s.split(`{${a}}`).join(b);
+  return s;
+};
+const loc = (o, f) => (lang === 'zh' && o && o[f + '_zh']) ? o[f + '_zh'] : (o ? o[f] : '');
+const val = (v) => (lang === 'zh' && VALUE_MAP[v]) ? VALUE_MAP[v] : (v || '');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (n) => Number(n || 0).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en-US');
+const SERIES = ['--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
+const colorOf = (i) => `var(${SERIES[(Number(i) || 0) % 8]})`;
+
+/* --------------------------- state & API --------------------------- */
+const S = { data: null, planId: null, tab: 'overview', region: '', metric: 'trainees', busy: false, drawer: null, modal: null, picker: null };
+try { S.planId = localStorage.getItem('tpp-plan'); S.tab = localStorage.getItem('tpp-tab') || 'overview'; } catch (e) {}
+
+async function call(method, path, body) {
+  const r = await fetch('/api' + path, {
+    method, headers: { authorization: 'Bearer ' + BOOT.token, 'content-type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+function toast(msg, err) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (err ? ' err' : '');
+  el.textContent = msg;
+  el.setAttribute('role', 'status');
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), err ? 6000 : 2600);
+}
+
+async function load(planId) {
+  const d = await call('GET', '/state' + (planId ? '?plan=' + encodeURIComponent(planId) : ''));
+  S.data = d;
+  S.planId = d.plan ? d.plan.id : null;
+  try { if (S.planId) localStorage.setItem('tpp-plan', S.planId); } catch (e) {}
+  render();
+}
+
+/* --------------------------- derived metrics --------------------------- */
+const NOW = new Date();
+const nowKey = (y) => (NOW.getFullYear() - y) * 12 + (NOW.getMonth() + 1); // month index relative to plan year
+
+function msActuals(ms) {
+  const ls = S.data.links.filter((l) => l.milestone_id === ms.id);
+  const sum = (k) => ls.reduce((a, l) => a + (Number(l[k]) || 0), 0);
+  return { links: ls, sched: sum('act_sessions'), deliv: sum('act_delivered'), trainees: sum('act_trainees'), enrolled: sum('act_enrolled') };
+}
+
+function linkMonth(l) {
+  if (l.item_type !== 'session' || !l.first_date) return null;
+  const [y, m] = l.first_date.split('-').map(Number);
+  return { y, m };
+}
+
+function msStatus(ms, a) {
+  a = a || msActuals(ms);
+  const nk = nowKey(S.data.plan.year);
+  const ps = Number(ms.planned_sessions) || 0, pt = Number(ms.planned_trainees) || 0;
+  if (!a.links.length) return ms.month <= nk + 1 ? 'unlinked' : 'planned';
+  if (ms.month < nk) {
+    const rs = ps ? a.deliv / ps : 1, rt = pt ? a.trainees / pt : 1;
+    const r = Math.min(rs, rt);
+    return r >= 0.9 ? 'done' : r >= 0.7 ? 'atrisk' : 'behind';
+  }
+  if (ps && a.sched < ps) return ms.month <= nk + 1 ? 'atrisk' : 'planned';
+  if (ms.month === nk && !ps && pt && a.trainees < pt * 0.5 && NOW.getDate() > 20) return 'atrisk';
+  return 'ontrack';
+}
+
+const ICON = { done: '✓', ontrack: '●', atrisk: '▲', behind: '✕', unlinked: '!', planned: '○' };
+const pill = (st) => `<span class="st ${st}"><i aria-hidden="true">${ICON[st]}</i>${esc(t('st_' + st))}</span>`;
+
+function visibleMilestones() {
+  return S.data.milestones.filter((m) => !S.region || m.region === S.region);
+}
+
+function findings() {
+  const d = S.data, year = d.plan.year, nk = nowKey(year), out = { target: [], unlinked: [], outside: [], behind: [], short: [] };
+  const mName = (m) => t('monthsLong')[m - 1];
+  for (const p of d.programs) {
+    const ms = d.milestones.filter((m) => m.program_id === p.id);
+    const s = ms.reduce((a, m) => a + (+m.planned_sessions || 0), 0), tr = ms.reduce((a, m) => a + (+m.planned_trainees || 0), 0);
+    if (+p.target_sessions !== s) out.target.push({ p, text: t('f_target_d', { p: loc(p, 'name'), a: fmt(s), b: fmt(p.target_sessions), u: t('sessions').toLowerCase() }) });
+    if (+p.target_trainees !== tr) out.target.push({ p, text: t('f_target_d', { p: loc(p, 'name'), a: fmt(tr), b: fmt(p.target_trainees), u: t('trainees').toLowerCase() }) });
+  }
+  for (const ms of visibleMilestones()) {
+    const a = msActuals(ms), st = msStatus(ms, a);
+    if (st === 'unlinked') out.unlinked.push({ ms, text: t('f_unlinked_d', { m: mName(ms.month) }) });
+    for (const l of a.links) {
+      const lm = linkMonth(l);
+      if (lm && (lm.y !== year || lm.m !== ms.month)) out.outside.push({ ms, text: t('f_outside_d', { n: l.name, m: mName(ms.month), r: (lm.y !== year ? lm.y + ' ' : '') + mName(lm.m) }) });
+    }
+    if (ms.month < nk && (st === 'behind' || st === 'atrisk')) out.behind.push({ ms, st, text: t(+ms.planned_sessions ? 'f_behind_d' : 'f_behind_t', { m: mName(ms.month), a: a.deliv, b: ms.planned_sessions, c: fmt(a.trainees), d: fmt(ms.planned_trainees) }) });
+    if (ms.month >= nk && ms.month <= nk + 2 && a.links.length && +ms.planned_sessions > a.sched) out.short.push({ ms, text: t('f_short_d', { m: mName(ms.month), a: a.sched, b: ms.planned_sessions }) });
+  }
+  return out;
+}
+
+/* --------------------------- render --------------------------- */
+const $app = document.getElementById('app');
+
+function render() {
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.title = t('app');
+  if (!BOOT || !BOOT.token) {
+    $app.innerHTML = `<div class="card blocked"><h2>${esc(t('blockedH'))}</h2><p>${esc(BOOT && BOOT.reason === 'not-allowed' ? t('notAllowed') : t('blocked_reason'))}</p>
+      <p class="sync-meta">${esc(BOOT && BOOT.reason ? 'reason: ' + BOOT.reason : '')}</p>${langToggle()}</div>`;
+    return;
+  }
+  const d = S.data;
+  if (!d) { $app.innerHTML = `<div class="empty"><span class="spin"></span> ${esc(t('loading'))}</div>`; return; }
+  let body;
+  if (!d.plan) body = emptyView();
+  else if (S.tab === 'breakdown') body = breakdownView();
+  else if (S.tab === 'alignment') body = alignmentView();
+  else body = overviewView();
+  $app.innerHTML = header() + `<main>${body}</main>` + drawerView() + modalView();
+  if (d.plan && S.tab === 'overview') drawChart();
+  bindDrawer();
+}
+
+function langToggle() {
+  return `<div class="lang" role="group" aria-label="Language"><button data-act="lang" data-v="en" class="${lang === 'en' ? 'on' : ''}">EN</button><button data-act="lang" data-v="zh" class="${lang === 'zh' ? 'on' : ''}">中文</button></div>`;
+}
+
+function syncLabel() {
+  const ls = S.data && S.data.lastSync;
+  if (!ls) return t('never');
+  const dt = new Date(ls.at);
+  return `${t('synced')} ${dt.toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-GB', { day: 'numeric', month: 'short' })} ${dt.toTimeString().slice(0, 5)}`;
+}
+
+function header() {
+  const d = S.data;
+  const f = d.plan ? findings() : null;
+  const nIssues = f ? f.unlinked.length + f.outside.length + f.behind.length + f.target.length + f.short.length : 0;
+  const modeTxt = BOOT.mode === 'demo' ? `<b>${esc(t('demo'))}</b>` : `<b>${esc(t('live'))}</b> ${esc(BOOT.domain || '')}`;
+  return `<header class="top">
+    <div class="top-row">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">TP</div><div><div class="brand-title">${esc(t('app'))}</div><div class="brand-sub">${esc(t('appSub'))}</div></div></div>
+      <div class="spacer"></div>
+      ${d.plans.length ? `<div class="plan-pick"><select data-act="plan" aria-label="Plan">${d.plans.map((p) => `<option value="${p.id}" ${d.plan && p.id === d.plan.id ? 'selected' : ''}>${esc(loc(p, 'name'))}</option>`).join('')}</select>
+        <button class="btn ghost small" data-act="new-plan" title="${esc(t('newPlan'))}">+ ${esc(t('newPlan'))}</button></div>` : ''}
+      <span class="mode">${modeTxt}</span>
+      ${d.plan ? `<span class="sync-meta">${esc(syncLabel())}</span>
+      <button class="btn primary" data-act="sync" ${S.busy ? 'disabled' : ''}>${S.busy ? `<span class="spin"></span> ${esc(t('syncing'))}` : '⟳ ' + esc(t('sync'))}</button>` : ''}
+      ${langToggle()}
+    </div>
+    ${d.plan ? `<nav class="tabs" role="tablist">
+      ${['overview', 'breakdown', 'alignment'].map((k) => `<button role="tab" aria-selected="${S.tab === k}" class="tab ${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${esc(t(k))}${k === 'alignment' && nIssues ? `<span class="count">${nIssues}</span>` : ''}</button>`).join('')}
+    </nav>` : ''}
+  </header>`;
+}
+
+function emptyView() {
+  return `<div class="card empty"><h2>${esc(t('emptyH'))}</h2><p>${esc(t('emptyP'))}</p>
+    <button class="btn primary" data-act="seed">${esc(t('seed'))}</button>
+    <button class="btn" data-act="new-plan">${esc(t('blank'))}</button></div>`;
+}
+
+function planHead(extra) {
+  const p = S.data.plan;
+  return `<div class="plan-head"><h1>${esc(loc(p, 'name'))}</h1><span class="year">FY${p.year}</span><button class="btn ghost small" data-act="edit-plan">${esc(t('edit'))}</button><div class="spacer"></div>${extra || ''}<button class="btn" data-act="export">⤓ ${esc(t('export'))}</button></div>`;
+}
+
+function overviewView() {
+  const d = S.data, nk = nowKey(d.plan.year);
+  const ms = visibleMilestones();
+  let psYtd = 0, ptYtd = 0, dYtd = 0, tYtd = 0, attention = 0;
+  for (const m of ms) {
+    const a = msActuals(m), st = msStatus(m, a);
+    if (m.month <= nk) { psYtd += +m.planned_sessions || 0; ptYtd += +m.planned_trainees || 0; dYtd += a.deliv; tYtd += a.trainees; }
+    if (st === 'unlinked' || st === 'atrisk' || st === 'behind') attention++;
+  }
+  const tgtS = d.programs.reduce((a, p) => a + (+p.target_sessions || 0), 0), tgtT = d.programs.reduce((a, p) => a + (+p.target_trainees || 0), 0);
+  const plS = d.milestones.reduce((a, m) => a + (+m.planned_sessions || 0), 0), plT = d.milestones.reduce((a, m) => a + (+m.planned_trainees || 0), 0);
+  const cov = tgtS + tgtT ? Math.round(100 * (Math.min(plS, tgtS) + Math.min(plT, tgtT)) / (tgtS + tgtT)) : 0;
+  const pct = (a, b) => b ? Math.min(100, Math.round(100 * a / b)) : 0;
+  const tile = (label, value, total, sub, p) => `<div class="card kpi"><div class="label">${esc(label)}</div><div class="value">${value}${total != null ? ` <small>/ ${total}</small>` : ''}</div><div class="sub">${esc(sub)}</div>${p != null ? `<div class="meter" role="img" aria-label="${p}%"><i style="width:${p}%"></i></div>` : ''}</div>`;
+
+  const rows = d.programs.map((p) => {
+    const pm = d.milestones.filter((m) => m.program_id === p.id && (!S.region || m.region === S.region));
+    let s = 0, tr = 0, dv = 0, ac = 0;
+    for (const m of pm) { const a = msActuals(m); s += +m.planned_sessions || 0; tr += +m.planned_trainees || 0; dv += a.deliv; ac += a.trainees; }
+    const mismatch = !S.region && (s !== +p.target_sessions || tr !== +p.target_trainees);
+    const prog = pct(ac, S.region ? tr : +p.target_trainees);
+    return `<tr>
+      <td><div class="pname"><span class="dot" style="background:${colorOf(p.color)}"></span><div>${esc(loc(p, 'name'))}<div class="pobj">${esc(loc(p, 'objective'))}</div>${mismatch ? `<div class="flag">! ${esc(t('mismatch'))}</div>` : ''}</div></div></td>
+      <td class="num hide-sm">${fmt(p.target_sessions)} ${esc(t('sessShort'))}<br>${fmt(p.target_trainees)} ${esc(t('traineesShort'))}</td>
+      <td class="num hide-sm">${fmt(s)} ${esc(t('sessShort'))}<br>${fmt(tr)} ${esc(t('traineesShort'))}</td>
+      <td class="num">${fmt(dv)} ${esc(t('sessShort'))}<br>${fmt(ac)} ${esc(t('traineesShort'))}</td>
+      <td><div class="bar2"><span style="font-size:12px;color:var(--ink-2)">${prog}%</span><div class="meter" role="img" aria-label="${prog}%"><i style="width:${prog}%;background:${colorOf(p.color)}"></i></div></div></td>
+    </tr>`;
+  }).join('');
+
+  return planHead(regionFilter()) + `
+    <div class="kpis">
+      ${tile(t('kSessions'), fmt(dYtd), fmt(psYtd), t('ofPlanned', { n: fmt(psYtd) }), pct(dYtd, psYtd))}
+      ${tile(t('kTrainees'), fmt(tYtd), fmt(ptYtd), t('ofPlanned', { n: fmt(ptYtd) }), pct(tYtd, ptYtd))}
+      ${tile(t('kCoverage'), cov + '%', null, t('vsTarget', { a: fmt(plS) + ' / ' + fmt(plT), b: fmt(tgtS) + ' / ' + fmt(tgtT) }), cov)}
+      ${tile(t('kAttention'), fmt(attention), null, t('attentionSub'), null)}
+    </div>
+    <div class="card chart-card">
+      <div class="chart-head"><h3>${esc(t('chartT'))}</h3>
+        <div class="seg" role="group"><button data-act="metric" data-v="trainees" class="${S.metric === 'trainees' ? 'on' : ''}">${esc(t('trainees'))}</button><button data-act="metric" data-v="sessions" class="${S.metric === 'sessions' ? 'on' : ''}">${esc(t('sessions'))}</button></div>
+        <div class="spacer"></div>
+        <div class="legend"><span><i class="sw" style="background:var(--s1)"></i>${esc(S.metric === 'sessions' ? t('delivered') : t('actual'))}</span>${S.metric === 'sessions' ? `<span><i class="sw" style="background:#b7d3f6"></i>${esc(t('scheduled'))}</span>` : ''}<span><i class="sw line" style="background:var(--ink)"></i>${esc(t('planned'))}</span></div>
+      </div>
+      <div class="chart-wrap" id="chart"></div>
+    </div>
+    <div class="section-title">${esc(t('programs'))}</div>
+    <div class="card" style="overflow-x:auto"><table class="ptable">
+      <thead><tr><th>${esc(t('program'))}</th><th class="num hide-sm">${esc(t('target'))}</th><th class="num hide-sm">${esc(t('inPlan'))}</th><th class="num">${esc(t('actual'))}</th><th>${esc(t('progress'))}</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+function regionFilter() {
+  const regions = [...new Set(S.data.milestones.map((m) => m.region).filter(Boolean))].sort();
+  return `<select data-act="region" aria-label="Region"><option value="">${esc(t('allRegions'))}</option>${regions.map((r) => `<option value="${esc(r)}" ${S.region === r ? 'selected' : ''}>${esc(val(r))}</option>`).join('')}</select>`;
+}
+
+function drawChart() {
+  const el = document.getElementById('chart');
+  if (!el) return;
+  const ms = visibleMilestones(), nk = nowKey(S.data.plan.year), metric = S.metric;
+  const rows = Array.from({ length: 12 }, (_, i) => ({ m: i + 1, plan: 0, act: 0, sched: 0 }));
+  for (const m of ms) {
+    const a = msActuals(m), r = rows[m.month - 1];
+    if (metric === 'sessions') { r.plan += +m.planned_sessions || 0; r.act += a.deliv; r.sched += a.sched; }
+    else { r.plan += +m.planned_trainees || 0; r.act += m.month <= nk ? a.trainees : 0; }
+  }
+  const W = 960, H = 260, L = 44, R = 12, Tp = 14, B = 28;
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.plan, r.act, r.sched)));
+  const step = niceStep(max), top = Math.ceil(max / step) * step;
+  const y = (v) => Tp + (H - Tp - B) * (1 - v / top);
+  const bw = (W - L - R) / 12, barW = Math.min(30, bw * 0.46);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('chartT'))}">`;
+  for (let v = 0; v <= top; v += step) s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${v ? '#ecebe5' : '#c3c2b7'}" stroke-width="1"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="#898781">${fmt(v)}</text>`;
+  rows.forEach((r, i) => {
+    const cx = L + bw * i + bw / 2, x = cx - barW / 2;
+    if (metric === 'sessions' && r.sched > r.act) s += bar(x, y(r.sched), barW, y(0) - y(r.sched), '#b7d3f6');
+    if (r.act > 0) s += bar(x, y(r.act), barW, y(0) - y(r.act), 'var(--s1)');
+    if (r.plan > 0) s += `<line x1="${cx - barW / 2 - 6}" x2="${cx + barW / 2 + 6}" y1="${y(r.plan)}" y2="${y(r.plan)}" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round"/>`;
+    const isNow = i + 1 === nk;
+    s += `<text x="${cx}" y="${H - 9}" text-anchor="middle" font-size="11.5" fill="${isNow ? '#1c5cab' : '#52514e'}" font-weight="${isNow ? 700 : 400}">${esc(t('months')[i])}</text>`;
+    s += `<rect class="hit" data-i="${i}" x="${L + bw * i}" y="${Tp}" width="${bw}" height="${H - Tp - B}" fill="transparent"/>`;
+  });
+  s += '</svg><div class="tip hidden"></div>';
+  el.innerHTML = s;
+  const tip = el.querySelector('.tip'), svg = el.querySelector('svg');
+  el.querySelectorAll('.hit').forEach((h) => {
+    h.addEventListener('mouseenter', () => {
+      const r = rows[+h.dataset.i];
+      const box = svg.getBoundingClientRect(), k = box.width / W;
+      tip.innerHTML = `<b>${esc(t('monthsLong')[r.m - 1])}</b><br>${esc(t('planned'))}: ${fmt(r.plan)}<br>${esc(metric === 'sessions' ? t('delivered') : t('actual'))}: ${fmt(r.act)}${metric === 'sessions' ? `<br>${esc(t('scheduled'))}: ${fmt(r.sched)}` : ''}`;
+      tip.style.left = (L + bw * (+h.dataset.i) + bw / 2) * k + 'px';
+      tip.style.top = (y(Math.max(r.plan, r.act, r.sched)) * k - 8) + 'px';
+      tip.classList.remove('hidden');
+    });
+    h.addEventListener('mouseleave', () => tip.classList.add('hidden'));
+  });
+}
+function bar(x, y, w, h, fill) {
+  if (h <= 0) return '';
+  const r = Math.min(4, h, w / 2);
+  return `<path d="M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z" fill="${fill}"/>`;
+}
+function niceStep(max) {
+  const raw = max / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+function breakdownView() {
+  const d = S.data, nk = nowKey(d.plan.year);
+  let h = `<div class="gh">${esc(t('program'))}</div>` + t('months').map((m, i) => `<div class="gh ${i + 1 === nk ? 'now' : ''}">${esc(m)}</div>`).join('');
+  for (const p of d.programs) {
+    const pm = d.milestones.filter((m) => m.program_id === p.id);
+    const s = pm.reduce((a, m) => a + (+m.planned_sessions || 0), 0), tr = pm.reduce((a, m) => a + (+m.planned_trainees || 0), 0);
+    const mismatch = s !== +p.target_sessions || tr !== +p.target_trainees;
+    h += `<div class="rowhead"><div class="pname"><span class="dot" style="background:${colorOf(p.color)}"></span><span>${esc(loc(p, 'name'))}</span></div>
+      <div class="meta">${esc(t('target'))}: ${fmt(p.target_sessions)} ${esc(t('sessShort'))} · ${fmt(p.target_trainees)} ${esc(t('traineesShort'))}</div>
+      <div class="meta" ${mismatch ? 'style="color:var(--serious-ink)"' : ''}>${mismatch ? '! ' : ''}${esc(t('planCovers', { s: fmt(s), t: fmt(tr) }))}</div>
+      <button class="btn ghost small edit" data-act="edit-program" data-id="${p.id}">${esc(t('edit'))}</button></div>`;
+    for (let m = 1; m <= 12; m++) {
+      const cellMs = pm.filter((x) => x.month === m && (!S.region || x.region === S.region));
+      h += `<div class="cell ${m === nk ? 'now' : ''}">${cellMs.map((x) => chip(x, p)).join('')}<button class="add" data-act="add-ms" data-p="${p.id}" data-m="${m}" aria-label="${esc(t('msNew'))} ${esc(t('monthsLong')[m - 1])}">+</button></div>`;
+    }
+  }
+  const legend = `<div class="status-legend">${['done', 'ontrack', 'atrisk', 'behind', 'unlinked', 'planned'].map(pill).join('')}</div>`;
+  return planHead(`${regionFilter()} <button class="btn" data-act="add-program">+ ${esc(t('addProgram'))}</button>`) +
+    `<div class="toolbar" style="margin-top:12px">${legend}</div><div class="grid-scroll"><div class="grid">${h}</div></div>`;
+}
+
+function chip(ms, p) {
+  const a = msActuals(ms), st = msStatus(ms, a), nk = nowKey(S.data.plan.year);
+  const outside = a.links.some((l) => { const lm = linkMonth(l); return lm && (lm.y !== S.data.plan.year || lm.m !== ms.month); });
+  const sessTxt = +ms.planned_sessions ? `${ms.month < nk ? a.deliv : a.sched}/${ms.planned_sessions} ${esc(t('sessShort'))}` : '';
+  const trTxt = +ms.planned_trainees ? `${ms.month <= nk ? fmt(a.trainees) : '-'}/${fmt(ms.planned_trainees)} ${esc(t('traineesShort'))}` : '';
+  return `<button class="chip" style="--c:${colorOf(p.color)}" data-act="open-ms" data-id="${ms.id}">
+    ${pill(st)}
+    <span class="t">${esc(loc(ms, 'title'))}</span>
+    <span class="n">${sessTxt ? `<span>${sessTxt}</span>` : ''}${trTxt ? `<span>${trTxt}</span>` : ''}</span>
+    <span class="r">${esc(val(ms.region))}${outside ? ' · <span style="color:var(--serious-ink)">⇄</span>' : ''}</span></button>`;
+}
+
+function alignmentView() {
+  const f = findings(), mName = (m) => t('monthsLong')[m - 1];
+  const prog = new Map(S.data.programs.map((p) => [p.id, p]));
+  const group = (key, ic, cls, items) => `<div class="card" style="margin-top:14px">
+    <div class="group-h"><span class="find-ic" style="background:var(--${cls}-soft);color:var(--${cls}-ink)">${ic}</span>${esc(t(key))}<span class="n">${items.length}</span></div>
+    ${items.length ? items.map((it) => {
+      const p = it.p || prog.get(it.ms.program_id);
+      return `<div class="find"><span class="dot" style="background:${colorOf(p && p.color)}"></span><div class="body">
+        <div class="h">${esc(it.ms ? loc(p, 'name') + ' · ' + loc(it.ms, 'title') : loc(p, 'name'))}</div>
+        <div class="d">${esc(it.text)}${it.ms && it.ms.region ? ' · ' + esc(val(it.ms.region)) : ''}</div></div>
+        ${it.ms ? `<button class="btn small" data-act="open-ms" data-id="${it.ms.id}">${esc(t('edit'))}</button>` : `<button class="btn small" data-act="edit-program" data-id="${p.id}">${esc(t('edit'))}</button>`}</div>`;
+    }).join('') : `<div class="ok-box">✓ ${esc(t('allGood'))}</div>`}</div>`;
+  return planHead(regionFilter()) +
+    group('f_behind', '✕', 'crit', f.behind) +
+    group('f_unlinked', '!', 'serious', f.unlinked) +
+    group('f_outside', '⇄', 'serious', f.outside) +
+    group('f_short', '▲', 'warn', f.short) +
+    group('f_target', 'Σ', 'warn', f.target);
+}
+
+/* --------------------------- drawer: milestone --------------------------- */
+function drawerView() {
+  if (!S.drawer) return '';
+  const dr = S.drawer, ms = dr.ms, d = S.data;
+  const p = d.programs.find((x) => x.id === ms.program_id);
+  const isNew = !ms.id;
+  const a = isNew ? null : msActuals(ms);
+  const opt = (arr, cur, valued) => arr.map((v, i) => { const value = valued ? valued[i] : v; return `<option value="${esc(value)}" ${String(cur) === String(value) ? 'selected' : ''}>${esc(v)}</option>`; }).join('');
+  const nk = nowKey(d.plan.year);
+  let links = '';
+  if (!isNew) {
+    links = `<div class="sub-h"><h4>${esc(t('linked'))}</h4><div class="spacer"></div>${a.links.length ? `<button class="btn small" data-act="sync-ms" ${S.busy ? 'disabled' : ''}>⟳ ${esc(t('syncMs'))}</button>` : ''}</div>
+      <div class="actual-strip">
+        <div><div class="l">${esc(t('aSched'))}</div><div class="v">${a.sched} <small>/ ${ms.planned_sessions}</small></div></div>
+        <div><div class="l">${esc(t('aDeliv'))}</div><div class="v">${a.deliv} <small>/ ${ms.planned_sessions}</small></div></div>
+        <div><div class="l">${esc(t('aTrain'))}</div><div class="v">${ms.month <= nk ? fmt(a.trainees) : '-'} <small>/ ${fmt(ms.planned_trainees)}</small></div></div>
+      </div><div style="margin-top:10px">${pill(msStatus(ms, a))}</div>
+      <div style="margin-top:12px">${a.links.length ? a.links.map(linkRow.bind(null, ms)).join('') : `<p class="sync-meta" style="white-space:normal">${esc(t('noLinks'))}</p>`}</div>
+      ${pickerView()}`;
+  }
+  return `<div class="scrim" data-act="close"></div>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="${esc(t('msEdit'))}">
+    <div class="drawer-head"><div style="flex:1;min-width:0"><div class="sub">${esc(p ? loc(p, 'name') : '')} · ${esc(t('monthsLong')[ms.month - 1])} ${d.plan.year}</div><h2>${esc(isNew ? t('msNew') : loc(ms, 'title'))}</h2></div><button class="btn ghost small" data-act="close" aria-label="${esc(t('close'))}">✕</button></div>
+    <div class="drawer-body">
+      <form class="form" id="msForm" autocomplete="off">
+        <label class="full">${esc(t('title'))}<input type="text" name="title" value="${esc(ms.title)}" required></label>
+        <label class="full">${esc(t('titleZh'))}<input type="text" name="title_zh" value="${esc(ms.title_zh)}"></label>
+        <label>${esc(t('program'))}<select name="program_id">${d.programs.map((x) => `<option value="${x.id}" ${x.id === ms.program_id ? 'selected' : ''}>${esc(loc(x, 'name'))}</option>`).join('')}</select></label>
+        <label>${esc(t('month'))}<select name="month">${opt(t('monthsLong'), ms.month, [1,2,3,4,5,6,7,8,9,10,11,12])}</select></label>
+        <label>${esc(t('plannedSessions'))}<input type="number" min="0" name="planned_sessions" value="${+ms.planned_sessions || 0}"></label>
+        <label>${esc(t('plannedTrainees'))}<input type="number" min="0" name="planned_trainees" value="${+ms.planned_trainees || 0}"></label>
+        <label>${esc(t('region'))}<select name="region"><option value=""></option>${opt(T[lang].regions, ms.region, T.en.regions)}${ms.region && !T.en.regions.includes(ms.region) ? `<option selected>${esc(ms.region)}</option>` : ''}</select></label>
+        <label>${esc(t('delivery'))}<select name="delivery"><option value=""></option>${opt(T[lang].deliveries, ms.delivery, T.en.deliveries)}${ms.delivery && !T.en.deliveries.includes(ms.delivery) ? `<option selected>${esc(ms.delivery)}</option>` : ''}</select></label>
+        <label class="full">${esc(t('notes'))}<textarea name="notes">${esc(ms.notes)}</textarea></label>
+      </form>
+      ${links}
+    </div>
+    <div class="drawer-foot">
+      <button class="btn primary" data-act="save-ms">${esc(t('save'))}</button>
+      <button class="btn" data-act="close">${esc(t('cancel'))}</button>
+      <div class="spacer"></div>
+      ${isNew ? '' : `<button class="btn danger" data-act="del-ms">${esc(t('del'))}</button>`}
+    </div>
+  </aside>`;
+}
+
+function linkRow(ms, l) {
+  const lm = linkMonth(l);
+  const outside = lm && (lm.y !== S.data.plan.year || lm.m !== ms.month);
+  const dates = l.first_date ? (l.first_date === l.last_date || !l.last_date ? l.first_date : `${l.first_date} → ${l.last_date}`) : '';
+  const stats = l.item_type === 'session'
+    ? `${esc(t('enrolled'))} ${fmt(l.act_enrolled)} · ${esc(t('attended'))} ${fmt(l.act_trainees)}${l.act_delivered ? ' · ✓ ' + esc(t('delivered')) : ''}`
+    : `${esc(t('enrolled'))} ${fmt(l.act_enrolled)} · ${esc(t('completedM'))} ${fmt(l.act_trainees)}`;
+  return `<div class="link"><div class="body">
+    <div class="nm"><span class="badge ${l.item_type === 'course' ? 'course' : ''}">${l.item_type === 'session' ? 'ILT' : 'Course'}</span>${esc(l.name)}</div>
+    ${l.item_type === 'session' && l.course_name ? `<div class="meta">${esc(l.course_name)}</div>` : ''}
+    <div class="meta">${l.synced_at ? stats : '...'}${dates ? ' · ' + esc(t('dates')) + ' ' + esc(dates) : ''}</div>
+    ${outside ? `<div class="warn">⇄ ${esc(t('outside', { m: t('monthsLong')[lm.m - 1] + (lm.y !== S.data.plan.year ? ' ' + lm.y : '') }))}</div>` : ''}
+    ${l.sync_note && /error/i.test(l.sync_note) ? `<div class="warn">${esc(l.sync_note)}</div>` : ''}
+  </div><button class="btn ghost small" data-act="unlink" data-id="${l.id}">${esc(t('remove'))}</button></div>`;
+}
+
+function pickerView() {
+  const pk = S.picker || { q: '', courses: null, course: null, sessions: null, loading: false };
+  let list = '';
+  if (pk.loading) list = `<div class="sync-meta" style="padding:8px"><span class="spin"></span></div>`;
+  else if (pk.course) {
+    list = `<div class="crumb"><button class="btn ghost small" data-act="pk-back">← ${esc(t('back'))}</button><b>${esc(pk.course.name)}</b></div>`;
+    if (pk.course.type === 'classroom') {
+      list += `<div class="sync-meta" style="margin-top:6px">${esc(t('pickSession'))}</div><div class="plist">${(pk.sessions || []).length ? pk.sessions.map((s) => `<button class="pitem" data-act="pk-session" data-id="${esc(s.id)}"><span class="nm">${esc(s.name)}</span><span class="x">${esc(s.start || '')}</span></button>`).join('') : `<div class="sync-meta">${esc(t('noResults'))}</div>`}</div>`;
+    }
+    list += `<div style="margin-top:8px"><button class="btn small" data-act="pk-course">${esc(t('linkCourse'))}</button></div>`;
+  } else if (pk.courses) {
+    list = `<div class="plist">${pk.courses.length ? pk.courses.map((c) => `<button class="pitem" data-act="pk-open" data-id="${esc(c.id)}"><span class="badge ${c.type === 'classroom' ? '' : 'course'}">${c.type === 'classroom' ? 'ILT' : esc(c.type || 'Course')}</span><span class="nm">${esc(c.name)}</span><span class="x">${esc(c.code)}</span></button>`).join('') : `<div class="sync-meta">${esc(t('noResults'))}</div>`}</div>`;
+  }
+  return `<div class="sub-h"><h4>${esc(t('linkItem'))}</h4></div><div class="picker">
+    <form class="row" id="pkForm"><input type="search" name="q" placeholder="${esc(t('search'))}" value="${esc(pk.q)}" aria-label="${esc(t('search'))}"><button class="btn" type="submit">${esc(t('searchBtn'))}</button></form>${list}</div>`;
+}
+
+/* --------------------------- modal: program / plan --------------------------- */
+function modalView() {
+  if (!S.modal) return '';
+  if (S.modal.kind === 'plan') {
+    const p = S.modal.plan;
+    return `<div class="scrim" data-act="close"></div><div class="modal" role="dialog" aria-modal="true">
+      <div class="drawer-head"><h2 style="flex:1">${esc(p.id ? loc(p, 'name') : t('newPlan'))}</h2><button class="btn ghost small" data-act="close">✕</button></div>
+      <div class="drawer-body"><form class="form" id="planForm">
+        <label class="full">${esc(t('planName'))}<input type="text" name="name" value="${esc(p.name)}" required></label>
+        <label class="full">${esc(t('planNameZh'))}<input type="text" name="name_zh" value="${esc(p.name_zh)}"></label>
+        <label>${esc(t('year'))}<input type="number" name="year" value="${p.year}" min="2020" max="2040"></label>
+      </form></div>
+      <div class="drawer-foot"><button class="btn primary" data-act="save-plan">${esc(t('save'))}</button><button class="btn" data-act="close">${esc(t('cancel'))}</button><div class="spacer"></div>
+      ${p.id ? `<button class="btn danger" data-act="del-plan">${esc(t('deletePlan'))}</button>` : `<button class="btn" data-act="seed">${esc(t('seed'))}</button>`}</div></div>`;
+  }
+  const p = S.modal.program;
+  return `<div class="scrim" data-act="close"></div><div class="modal" role="dialog" aria-modal="true">
+    <div class="drawer-head"><h2 style="flex:1">${esc(p.id ? loc(p, 'name') : t('newProgram'))}</h2><button class="btn ghost small" data-act="close">✕</button></div>
+    <div class="drawer-body"><form class="form" id="progForm">
+      <label class="full">${esc(t('progName'))}<input type="text" name="name" value="${esc(p.name)}" required></label>
+      <label class="full">${esc(t('progNameZh'))}<input type="text" name="name_zh" value="${esc(p.name_zh)}"></label>
+      <label class="full">${esc(t('objective'))}<textarea name="objective">${esc(p.objective)}</textarea></label>
+      <label class="full">${esc(t('objectiveZh'))}<textarea name="objective_zh">${esc(p.objective_zh)}</textarea></label>
+      <label>${esc(t('targetSessions'))}<input type="number" min="0" name="target_sessions" value="${+p.target_sessions || 0}"></label>
+      <label>${esc(t('targetTrainees'))}<input type="number" min="0" name="target_trainees" value="${+p.target_trainees || 0}"></label>
+      <label>${esc(t('owner'))}<input type="text" name="owner" value="${esc(p.owner)}"></label>
+      <label>${esc(t('color'))}<span class="colors">${SERIES.map((_, i) => `<button type="button" data-act="color" data-v="${i}" class="${+p.color === i ? 'on' : ''}" style="background:${colorOf(i)}" aria-label="color ${i + 1}"></button>`).join('')}</span></label>
+    </form></div>
+    <div class="drawer-foot"><button class="btn primary" data-act="save-program">${esc(t('save'))}</button><button class="btn" data-act="close">${esc(t('cancel'))}</button><div class="spacer"></div>${p.id ? `<button class="btn danger" data-act="del-program">${esc(t('del'))}</button>` : ''}</div></div>`;
+}
+
+function formData(id) {
+  const f = document.getElementById(id);
+  return f ? Object.fromEntries(new FormData(f).entries()) : {};
+}
+
+/* --------------------------- events --------------------------- */
+function bindDrawer() {
+  const pk = document.getElementById('pkForm');
+  if (pk) pk.addEventListener('submit', (e) => { e.preventDefault(); searchDocebo(new FormData(pk).get('q')); });
+  const first = document.querySelector('.drawer input[name=title], .modal input[name=name]');
+  if (first && S.focusFirst) { first.focus(); S.focusFirst = false; }
+}
+
+async function searchDocebo(q) {
+  S.picker = { q, courses: null, loading: true };
+  keepDrawerScroll(render);
+  try {
+    const r = await call('GET', '/docebo/courses?q=' + encodeURIComponent(q || ''));
+    S.picker = { q, courses: r.items, loading: false };
+  } catch (e) { S.picker = { q, courses: [], loading: false }; toast(e.message, true); }
+  keepDrawerScroll(render);
+}
+
+function keepDrawerScroll(fn) {
+  const b = document.querySelector('.drawer-body'), top = b ? b.scrollTop : 0;
+  fn();
+  const b2 = document.querySelector('.drawer-body');
+  if (b2) b2.scrollTop = top;
+}
+
+async function withBusy(fn) {
+  if (S.busy) return;
+  S.busy = true; keepDrawerScroll(render);
+  try { await fn(); } catch (e) { toast(e.message, true); }
+  S.busy = false; keepDrawerScroll(render);
+}
+
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act;
+  if (act === 'plan') { S.drawer = null; load(el.value); }
+  if (act === 'region') { S.region = el.value; render(); }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && (S.drawer || S.modal)) { S.drawer = null; S.modal = null; S.picker = null; render(); }
+});
+
+document.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.tagName === 'SELECT') return;
+  const act = el.dataset.act, d = S.data;
+  if (el.tagName === 'BUTTON' && el.type !== 'submit') e.preventDefault();
+  switch (act) {
+    case 'lang': lang = el.dataset.v; try { localStorage.setItem('tpp-lang', lang); } catch (x) {} keepDrawerScroll(render); break;
+    case 'tab': S.tab = el.dataset.v; try { localStorage.setItem('tpp-tab', S.tab); } catch (x) {} render(); break;
+    case 'metric': S.metric = el.dataset.v; render(); break;
+    case 'close': S.drawer = null; S.modal = null; S.picker = null; render(); break;
+    case 'seed': S.modal = null; await withBusy(async () => { const r = await call('POST', '/seed', { year: NOW.getFullYear() }); await load(r.id); S.tab = 'overview'; }); break;
+    case 'new-plan': S.modal = { kind: 'plan', plan: { name: '', name_zh: '', year: NOW.getFullYear() + (NOW.getMonth() >= 9 ? 1 : 0) } }; S.focusFirst = true; render(); break;
+    case 'edit-plan': S.modal = { kind: 'plan', plan: { ...d.plan } }; render(); break;
+    case 'save-plan': {
+      const f = formData('planForm');
+      if (!f.name) return toast(t('planName') + '?', true);
+      await withBusy(async () => {
+        let id = S.modal.plan.id;
+        if (id) await call('PUT', '/plans/' + id, f); else id = (await call('POST', '/plans', f)).id;
+        S.modal = null; await load(id); toast(t('saved'));
+      });
+      break;
+    }
+    case 'del-plan': if (!confirm(t('delPlanQ'))) return; await withBusy(async () => { await call('DELETE', '/plans/' + d.plan.id); S.modal = null; await load(null); toast(t('deleted')); }); break;
+    case 'export': {
+      const r = await fetch('/api/export.csv?plan=' + encodeURIComponent(d.plan.id), { headers: { authorization: 'Bearer ' + BOOT.token } });
+      const blob = await r.blob(), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `training-plan-${d.plan.year}.csv`; a.click();
+      break;
+    }
+    case 'sync': await withBusy(async () => {
+      const r = await call('POST', '/sync', { plan_id: d.plan.id });
+      await load(d.plan.id);
+      toast(r.pending ? t('syncPartial', { n: r.synced, p: r.pending }) : t('syncDone', { n: r.synced }), r.failed > 0);
+      if (r.errors && r.errors.length) toast(r.errors[0], true);
+    }); break;
+    case 'add-program': S.modal = { kind: 'program', program: { name: '', name_zh: '', objective: '', objective_zh: '', target_sessions: 0, target_trainees: 0, owner: '', color: d.programs.length % 8 } }; S.focusFirst = true; render(); break;
+    case 'edit-program': S.modal = { kind: 'program', program: { ...d.programs.find((p) => p.id === el.dataset.id) } }; render(); break;
+    case 'color': S.modal.program = { ...S.modal.program, ...formData('progForm'), color: +el.dataset.v }; render(); break;
+    case 'save-program': {
+      const f = { ...formData('progForm'), color: S.modal.program.color };
+      if (!f.name) return toast(t('progName') + '?', true);
+      await withBusy(async () => {
+        if (S.modal.program.id) await call('PUT', '/programs/' + S.modal.program.id, f);
+        else await call('POST', '/programs', { ...f, plan_id: d.plan.id, sort: d.programs.length });
+        S.modal = null; await load(d.plan.id); toast(t('saved'));
+      });
+      break;
+    }
+    case 'del-program': if (!confirm(t('delProgramQ'))) return; await withBusy(async () => { await call('DELETE', '/programs/' + S.modal.program.id); S.modal = null; await load(d.plan.id); toast(t('deleted')); }); break;
+    case 'add-ms': {
+      const p = d.programs.find((x) => x.id === el.dataset.p);
+      S.drawer = { ms: { program_id: p.id, month: +el.dataset.m, title: p.name, title_zh: p.name_zh, planned_sessions: 1, planned_trainees: 0, region: '', delivery: '', notes: '' } };
+      S.picker = null; S.focusFirst = true; render(); break;
+    }
+    case 'open-ms': S.drawer = { ms: { ...d.milestones.find((m) => m.id === el.dataset.id) } }; S.picker = null; render(); break;
+    case 'save-ms': {
+      const f = formData('msForm');
+      if (!f.title) return toast(t('title') + '?', true);
+      await withBusy(async () => {
+        if (S.drawer.ms.id) await call('PUT', '/milestones/' + S.drawer.ms.id, f);
+        else { const r = await call('POST', '/milestones', { ...f, plan_id: d.plan.id }); S.drawer.ms.id = r.id; }
+        await load(d.plan.id);
+        const ms = S.data.milestones.find((m) => m.id === S.drawer.ms.id);
+        S.drawer = ms ? { ms: { ...ms } } : null;
+        toast(t('saved'));
+      });
+      break;
+    }
+    case 'del-ms': if (!confirm(t('delMsQ'))) return; await withBusy(async () => { await call('DELETE', '/milestones/' + S.drawer.ms.id); S.drawer = null; await load(d.plan.id); toast(t('deleted')); }); break;
+    case 'sync-ms': await withBusy(async () => { await call('POST', '/sync', { plan_id: d.plan.id, milestone_id: S.drawer.ms.id }); await load(d.plan.id); }); break;
+    case 'unlink': await withBusy(async () => { await call('DELETE', '/links/' + el.dataset.id); await load(d.plan.id); toast(t('removed')); }); break;
+    case 'pk-back': S.picker = { ...S.picker, course: null, sessions: null }; keepDrawerScroll(render); break;
+    case 'pk-open': {
+      const c = S.picker.courses.find((x) => x.id === el.dataset.id);
+      S.picker = { ...S.picker, course: c, sessions: null, loading: c.type === 'classroom' };
+      keepDrawerScroll(render);
+      if (c.type === 'classroom') {
+        try { const r = await call('GET', '/docebo/sessions?course_id=' + encodeURIComponent(c.id)); S.picker = { ...S.picker, sessions: r.items, loading: false }; }
+        catch (x) { S.picker = { ...S.picker, sessions: [], loading: false }; toast(x.message, true); }
+        keepDrawerScroll(render);
+      }
+      break;
+    }
+    case 'pk-session': case 'pk-course': {
+      const c = S.picker.course, s = act === 'pk-session' ? S.picker.sessions.find((x) => x.id === el.dataset.id) : null;
+      await withBusy(async () => {
+        await call('POST', '/links', { milestone_id: S.drawer.ms.id, item_type: s ? 'session' : 'course', course_id: c.id, session_id: s ? s.id : null, name: s ? s.name : c.name, course_name: c.name, course_type: c.type });
+        await load(d.plan.id);
+        S.picker = { ...S.picker, course: null, sessions: null };
+        toast(t('linkedOk'));
+      });
+      break;
+    }
+  }
+});
+
+render();
+if (BOOT && BOOT.token) load(S.planId).catch((e) => { if (S.planId) { S.planId = null; load(null).catch((x) => toast(x.message, true)); } else toast(e.message, true); });
+</script>
+</body>
+</html>

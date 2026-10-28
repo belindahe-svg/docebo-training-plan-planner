@@ -1,0 +1,30 @@
+name = "docebo-training-plan-planner"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+# Keep variables added in the dashboard; values set below still win on deploy.
+keep_vars = true
+
+# The planner UI is bundled from src/app.html.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "training-plan-planner"
+database_id = "fd446352-bd9e-41c2-b4a7-d93d7e2b4621"
+
+# Nightly sync of actuals from Docebo (18:00 UTC = 02:00 Singapore).
+[triggers]
+crons = ["0 18 * * *"]
+
+# Plain settings. Edit here on GitHub; each push redeploys.
+# Secrets (DOCEBO_CLIENT_ID, DOCEBO_CLIENT_SECRET, DOCEBO_USERNAME,
+# DOCEBO_PASSWORD, SALT_SECRET, APP_SECRET) go in the dashboard as Secrets.
+[vars]
+DEMO_MODE = "1"
+DOCEBO_DOMAIN = "atalentdemo2.docebosaas.com"
+SYNC_BUDGET = "45"
+ALLOWED_USER_IDS = ""
