@@ -293,6 +293,7 @@ function normEvent(e) {
     id: String(pick(e, ['id', 'id_event', 'event_id'])),
     name: pick(e, ['name']) || 'Event',
     date: dateOnly(pick(e, ['schedule.date', 'day', 'date', 'date_begin', 'start_date'])),
+    venue: pick(e, ['location.name', 'location_name']) || (pick(e, ['webinar_tool', 'webinar.tool']) ? 'Online' : null),
   };
 }
 
@@ -337,7 +338,7 @@ async function syncSessionLink(env, link, budget) {
     act_trainees: present.size,
     first_date: firstDate,
     last_date: lastDate,
-    sync_note: events.length ? null : 'Session has no events yet',
+    sync_note: events.length ? ([...new Set(events.map((e) => e.venue).filter(Boolean))].length ? `Venue: ${[...new Set(events.map((e) => e.venue).filter(Boolean))].join(', ')}` : null) : 'Session has no events yet',
   };
 }
 
@@ -452,6 +453,25 @@ async function audienceMembers(env, type, id, budget) {
   return out;
 }
 
+/* ----------------------------- venues ----------------------------------- */
+// GET /learn/v1/location (id, name, address, country); classrooms per location
+// at GET /learn/v1/location/{id}/classroom (id, name, seats).
+
+async function listLocations(env) {
+  const raw = await doceboItems(env, '/learn/v1/location', null, 3, 100);
+  return raw.map((l) => ({
+    id: String(pick(l, ['id', 'id_location', 'location_id'])),
+    name: pick(l, ['name']) || 'Location',
+    country: pick(l, ['country']) || '',
+    address: pick(l, ['address']) || '',
+  })).filter((l) => l.id && l.id !== 'undefined');
+}
+
+async function listClassrooms(env, locationId) {
+  const raw = await doceboItems(env, `/learn/v1/location/${encodeURIComponent(locationId)}/classroom`, null, 1, 100);
+  return raw.map((c) => ({ id: String(pick(c, ['id', 'id_classroom'])), name: pick(c, ['name']) || 'Classroom', seats: num(pick(c, ['seats']), 0) }));
+}
+
 /* ----------------------------- create in Docebo ------------------------- */
 
 function cleanTime(t, d) {
@@ -462,16 +482,18 @@ function cleanTime(t, d) {
 /**
  * Create an ILT course (optional), then one session + one event per row, and
  * link each new session to the milestone. Docebo requires a venue or a
- * webinar tool on every event; venues are out of scope, so events use the
- * "custom" webinar tool with the meeting link given.
+ * webinar tool on every event: a row with location_id (and optional
+ * classroom_id) gets that venue, otherwise the "custom" webinar tool with
+ * the meeting link given.
  */
 async function createSessions(env, ms, plan, body) {
   const rows = Array.isArray(body.sessions) ? body.sessions.slice(0, 12) : [];
   if (!rows.length) throw new HttpError(400, 'Add at least one session.');
   const meetingUrl = String(body.meeting_url || env.DEFAULT_MEETING_URL || '').trim();
-  if (!/^https?:\/\//i.test(meetingUrl)) throw new HttpError(400, 'A meeting link (https://...) is needed: Docebo requires a venue or a webinar link on every event.');
   for (const r of rows) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(r.date || ''))) throw new HttpError(400, 'Every session needs a date.');
+    // Docebo requires a venue or a webinar tool on every event.
+    if (!r.location_id && !/^https?:\/\//i.test(meetingUrl)) throw new HttpError(400, 'Each session needs a venue, or a meeting link (https://...) for online sessions.');
   }
 
   let courseId = body.course_id ? String(body.course_id) : null;
@@ -506,7 +528,9 @@ async function createSessions(env, ms, plan, body) {
         name: sessName, day: r.date,
         time_begin: cleanTime(r.time_begin, '09:00:00'), time_end: cleanTime(r.time_end, '17:00:00'),
         timezone: clampStr(r.timezone || body.timezone || 'Asia/Shanghai', 60),
-        webinar_tool: 'custom', custom_url: meetingUrl,
+        ...(r.location_id
+          ? { id_location: Number(r.location_id), ...(r.classroom_id ? { id_classroom: Number(r.classroom_id) } : {}) }
+          : { webinar_tool: 'custom', custom_url: meetingUrl }),
       });
       const linkId = uid();
       await insertRow(env, 'links', {
@@ -819,6 +843,14 @@ const DEMO_AUDIENCES = [
   { type: 'branch', id: '202', name: 'Dealers / Africa', size: 31 },
   { type: 'branch', id: '203', name: 'Plant / EHS Staff', size: 300 },
 ];
+const DEMO_LOCATIONS = [
+  { id: 11, name: 'Shanghai Training Centre', country: 'China', address: 'Lingang, Shanghai' },
+  { id: 12, name: 'Jakarta Dealer Academy', country: 'Indonesia', address: 'Cikarang, Bekasi' },
+  { id: 13, name: 'Dubai Service Hub', country: 'United Arab Emirates', address: 'Jebel Ali Free Zone' },
+  { id: 14, name: 'Johannesburg Workshop', country: 'South Africa', address: 'Midrand' },
+  { id: 15, name: 'Sao Paulo Parts Centre', country: 'Brazil', address: 'Guarulhos' },
+];
+const DEMO_CLASSROOMS = { 11: [{ id: 111, name: 'Hydraulics Lab', seats: 16 }, { id: 112, name: 'Machine Yard', seats: 24 }], 12: [{ id: 121, name: 'Workshop Bay 1', seats: 20 }] };
 const DEMO_NAMES = ['Arif Rahman', 'Siti Aminah', 'Nguyen Van An', 'Tran Thi Mai', 'Somchai P.', 'Maria Santos', 'Li Wei', 'Zhang Hua', 'Wang Fang', 'Ahmed Hassan', 'Fatima Noor', 'Kwame Mensah', 'Amara Okafor', 'Carlos Rivera', 'Ana Souza'];
 function demoMembers(id) {
   const a = DEMO_AUDIENCES.find((x) => x.id === String(id));
@@ -847,7 +879,9 @@ function demoWrite(method, path, body) {
   if (method === 'POST' && (m = u.pathname.match(/^\/course\/v1\/sessions\/(\d+)\/events$/))) {
     const eid = id();
     const evs = cat.events.get(m[1]) || [];
-    evs.push({ id: eid, name: body.name, schedule: { date: body.day, time_begin: body.time_begin, time_end: body.time_end } });
+    if (!body.id_location && !(body.webinar_tool && body.custom_url)) throw new HttpError(400, 'The event must have a venue or a webinar tool');
+    const loc = DEMO_LOCATIONS.find((l) => l.id === body.id_location);
+    evs.push({ id: eid, name: body.name, schedule: { date: body.day, time_begin: body.time_begin, time_end: body.time_end }, location: loc ? { name: loc.name } : null, webinar_tool: body.webinar_tool || null });
     cat.events.set(m[1], evs);
     cat.attendance.set(eid, []);
     for (const s of cat.sessions.values()) { const ss = s.find((x) => x.id === m[1]); if (ss && !ss.date_start) ss.date_start = `${body.day} ${body.time_begin}`; }
@@ -895,6 +929,8 @@ function demoGet(path) {
   if ((m = u.pathname.match(/^\/course\/v1\/events\/(\d+)\/attendance$/))) return paged(cat.attendance.get(m[1]) || []);
   if (u.pathname === '/course/v1/courses/enrollments') return paged(cat.enrollments.get(u.searchParams.get('course_id[]')) || []);
   const q = (u.searchParams.get('search_text') || '').toLowerCase();
+  if (u.pathname === '/learn/v1/location') return paged(DEMO_LOCATIONS);
+  if ((m = u.pathname.match(/^\/learn\/v1\/location\/(\d+)\/classroom$/))) return paged(DEMO_CLASSROOMS[m[1]] || []);
   if (u.pathname === '/audiences/v1/audience') return paged(DEMO_AUDIENCES.filter((a) => a.type === 'audience' && (!q || a.name.toLowerCase().includes(q))).map((a) => ({ uuid: a.id, name: a.name, type: 'manual' })));
   if (u.pathname === '/manage/v1/orgchart') return paged(DEMO_AUDIENCES.filter((a) => a.type === 'branch' && (!q || a.name.toLowerCase().includes(q))).map((a) => ({ id: Number(a.id), title: a.name, code: a.name.split('/').pop().trim().toUpperCase().replace(/\W+/g, '-') })));
   if ((m = u.pathname.match(/^\/audiences\/v1\/audience\/([\w-]+)\/users$/))) return paged(demoMembers(m[1]).map((x) => ({ idst: String(x.user_id), userid: '/' + x.username, firstname: x.first_name, lastname: x.last_name })));
@@ -921,6 +957,18 @@ async function exportCsv(env, planId) {
 
 /* ----------------------------- router ----------------------------------- */
 
+/** The user's Docebo language preference, mapped to the planner's en / zh. */
+async function userLanguage(env, userId) {
+  try {
+    const d = await doceboGet(env, `/manage/v1/user/${encodeURIComponent(userId)}`);
+    const code = String(pick(d, ['data.user_data.lang_code', 'data.user_data.language', 'data.user_data.lang_browsercode']) || '').toLowerCase();
+    if (!code) return null;
+    return /zh|chinese|mandarin/.test(code) ? 'zh' : 'en';
+  } catch {
+    return null; // fall back to the browser language
+  }
+}
+
 async function serveApp(env, url) {
   let token = null, user = null, reason = null;
   const h = await verifyFrameHandoff(env, url.searchParams);
@@ -932,8 +980,10 @@ async function serveApp(env, url) {
   } else {
     reason = h.reason;
   }
+  let docLang = null;
+  if (user && !isDemo(env) && user.uid !== 'demo') docLang = await userLanguage(env, user.uid);
   if (user) token = await issueToken(env, user);
-  const boot = { token, user, reason, mode: isDemo(env) ? 'demo' : 'live', domain: isDemo(env) ? null : String(env.DOCEBO_DOMAIN || ''), meetingUrl: String(env.DEFAULT_MEETING_URL || '') };
+  const boot = { token, user, reason, mode: isDemo(env) ? 'demo' : 'live', domain: isDemo(env) ? null : String(env.DOCEBO_DOMAIN || ''), meetingUrl: String(env.DEFAULT_MEETING_URL || ''), lang: docLang };
   const html = APP_HTML.replace('/*__BOOT__*/null', () => JSON.stringify(boot).replace(/</g, '\\u003c'));
   return new Response(html, {
     headers: {
@@ -1065,6 +1115,8 @@ async function api(req, env, url) {
     return json(await syncActuals(env, b.plan_id, b.milestone_id || null));
   }
 
+  if (p === '/docebo/locations' && method === 'GET') return json({ items: await listLocations(env) });
+  if (p === '/docebo/classrooms' && method === 'GET') return json({ items: await listClassrooms(env, url.searchParams.get('location_id') || '') });
   if (p === '/docebo/audiences' && method === 'GET') return json({ items: await searchAudiences(env, url.searchParams.get('q') || '') });
   if (p === '/docebo/courses' && method === 'GET') return json({ items: await searchCourses(env, url.searchParams.get('q') || '') });
   if (p === '/docebo/sessions' && method === 'GET') {

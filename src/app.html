@@ -207,6 +207,10 @@ main { padding: 20px; max-width: 1480px; margin: 0 auto; }
 .panel .row { display: flex; gap: 8px; } .panel .row input { flex: 1; min-width: 0; }
 .srow { display: grid; grid-template-columns: 1.4fr 1fr 1fr .8fr auto; gap: 6px; margin-bottom: 6px; }
 .srow input { min-width: 0; width: 100%; padding: 4px 6px; }
+.sblock { border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 8px; }
+.vrow { display: flex; gap: 6px; align-items: center; }
+.vrow select { flex: 1; min-width: 0; padding: 4px 6px; min-height: 30px; }
+.vl { font-size: 13px; }
 .aud-chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface); }
 .badge.new { background: var(--good-soft); color: var(--good-ink); text-transform: none; font-weight: 600; }
 .elist { margin: 8px 0 12px; padding-left: 18px; }
@@ -288,7 +292,8 @@ const T = {
     deliverT: 'Delivery in Docebo', createBtn: 'Create sessions in Docebo', linkBtn: 'Link existing', hide: 'Hide',
     createT: 'Create sessions in Docebo', useExisting: 'Use an existing ILT course', newCourse: 'Create a new ILT course', courseName: 'New course name',
     pickCourse: 'Search ILT courses', chosenCourse: 'Course', sessionsT: 'Sessions', date: 'Date', start: 'Start', end: 'End', seats: 'Seats',
-    addRow: '+ Add session', timezone: 'Time zone', meeting: 'Meeting link', meetingHint: 'Docebo needs a venue or a webinar link on every event. Venues are skipped in this POC, so each event gets this link.',
+    addRow: '+ Add session', timezone: 'Time zone', meeting: 'Meeting link (online sessions)', meetingHint: 'Online sessions use this link as their webinar link.',
+    venue: 'Venue', online: 'Online (meeting link)', classroom: 'Classroom', anyRoom: 'Any classroom', noVenues: 'No venues found in Docebo.',
     createGo: 'Create {n} session(s) in Docebo', createdOk: 'Created {n} session(s) in Docebo', createdPartial: 'Created {n}, {f} failed: {e}',
     enrolT: 'Enrol the audience', enrolPreview: 'Preview enrolment', enrolGo: 'Confirm and enrol {n} users', enrolPlan: '{n} users from {a} will be enrolled:',
     enrolNeedAud: 'Choose an audience and save the milestone to enrol it.', enrolNeedLinks: 'Create or link the Docebo sessions first.',
@@ -349,7 +354,8 @@ const T = {
     deliverT: 'Docebo中的交付', createBtn: '在Docebo中创建场次', linkBtn: '关联已有内容', hide: '收起',
     createT: '在Docebo中创建场次', useExisting: '使用已有ILT课程', newCourse: '新建ILT课程', courseName: '新课程名称',
     pickCourse: '搜索ILT课程', chosenCourse: '课程', sessionsT: '场次', date: '日期', start: '开始', end: '结束', seats: '名额',
-    addRow: '+ 添加场次', timezone: '时区', meeting: '会议链接', meetingHint: 'Docebo要求每个活动必须设置场地或线上会议链接。本POC不设置场地，因此每个活动使用此链接。',
+    addRow: '+ 添加场次', timezone: '时区', meeting: '会议链接（线上场次）', meetingHint: '线上场次将使用此链接作为会议链接。',
+    venue: '场地', online: '线上（会议链接）', classroom: '教室', anyRoom: '不指定教室', noVenues: 'Docebo中未找到场地。',
     createGo: '在Docebo中创建 {n} 个场次', createdOk: '已在Docebo中创建 {n} 个场次', createdPartial: '已创建 {n} 个，{f} 个失败：{e}',
     enrolT: '为培训对象报名', enrolPreview: '预览报名', enrolGo: '确认为 {n} 人报名', enrolPlan: '将为 {a} 的 {n} 人报名：',
     enrolNeedAud: '请先选择培训对象并保存里程碑。', enrolNeedLinks: '请先创建或关联Docebo场次。',
@@ -373,7 +379,9 @@ T.en.deliveries.forEach((v, i) => (VALUE_MAP[v] = T.zh.deliveries[i]));
 T.en.regions.forEach((v, i) => (VALUE_MAP[v] = T.zh.regions[i]));
 
 let lang = 'en';
-try { const saved = localStorage.getItem('tpp-lang'); lang = saved || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'); } catch (e) {}
+// Inside Docebo the user's own language setting decides; standalone (demo) falls back to the last choice or the browser.
+if (BOOT && BOOT.lang) lang = BOOT.lang;
+else { try { const saved = localStorage.getItem('tpp-lang'); lang = saved || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'); } catch (e) {} }
 const t = (k, vars) => {
   let s = (T[lang] && T[lang][k]) ?? T.en[k] ?? k;
   if (vars && typeof s === 'string') for (const [a, b] of Object.entries(vars)) s = s.split(`{${a}}`).join(b);
@@ -521,6 +529,7 @@ function render() {
 }
 
 function langToggle() {
+  if (BOOT && BOOT.lang) return '';
   return `<div class="lang" role="group" aria-label="Language"><button data-act="lang" data-v="en" class="${lang === 'en' ? 'on' : ''}">EN</button><button data-act="lang" data-v="zh" class="${lang === 'zh' ? 'on' : ''}">中文</button></div>`;
 }
 
@@ -787,6 +796,7 @@ function linkRow(ms, l) {
     ${l.item_type === 'session' && l.course_name ? `<div class="meta">${esc(l.course_name)}</div>` : ''}
     <div class="meta">${l.synced_at ? stats : '...'}${dates ? ' · ' + esc(t('dates')) + ' ' + esc(dates) : ''}</div>
     ${outside ? `<div class="warn">⇄ ${esc(t('outside', { m: t('monthsLong')[lm.m - 1] + (lm.y !== S.data.plan.year ? ' ' + lm.y : '') }))}</div>` : ''}
+    ${l.sync_note && /^Venue: /.test(l.sync_note) ? `<div class="note">📍 ${esc(l.sync_note.slice(7))}</div>` : ''}
     ${l.enrol_note ? `<div class="note">👥 ${esc(l.enrol_note)}</div>` : ''}
     ${l.sync_note && /error/i.test(l.sync_note) ? `<div class="warn">${esc(l.sync_note)}</div>` : ''}
   </div><button class="btn ghost small" data-act="unlink" data-id="${l.id}">${esc(t('remove'))}</button></div>`;
@@ -815,6 +825,36 @@ function audienceView(ms) {
 
 const TZS = ['Asia/Shanghai', 'Asia/Singapore', 'Asia/Jakarta', 'Asia/Bangkok', 'Asia/Ho_Chi_Minh', 'Asia/Dubai', 'Asia/Riyadh', 'Africa/Johannesburg', 'Africa/Lagos', 'America/Sao_Paulo', 'America/Mexico_City', 'Europe/London', 'UTC'];
 
+const REGION_HINTS = {
+  'China': /china|shanghai|beijing|changsha|xuzhou|中国/i,
+  'Southeast Asia': /indonesia|jakarta|singapore|malaysia|thailand|bangkok|vietnam|philippines|asean/i,
+  'Middle East': /emirates|uae|dubai|saudi|riyadh|qatar|oman|kuwait|middle east/i,
+  'Africa': /africa|johannesburg|nigeria|lagos|kenya|nairobi|egypt|ghana/i,
+  'Latin America': /brazil|sao paulo|mexico|chile|peru|colombia|argentina/i,
+  'Europe': /europe|germany|uk|united kingdom|france|italy|spain|netherlands/i,
+};
+function defaultVenue(ms) {
+  if (/virtual|e-learning/i.test(ms.delivery || '') || !S.locs || !S.locs.length) return '';
+  const re = REGION_HINTS[ms.region];
+  const hit = re && S.locs.find((l) => re.test(`${l.name} ${l.country} ${l.address}`));
+  return hit ? hit.id : S.locs[0].id;
+}
+
+async function loadLocations() {
+  if (S.locs) return;
+  try { S.locs = (await call('GET', '/docebo/locations')).items; } catch (e) { S.locs = []; toast(e.message, true); }
+  if (S.create && S.drawer) { const v = defaultVenue(S.drawer.ms); S.create.rows.forEach((r) => { if (r.location_id === undefined) r.location_id = v; }); }
+  keepDrawerScroll(render);
+}
+
+async function loadClassrooms(locId) {
+  S.rooms = S.rooms || {};
+  if (!locId || S.rooms[locId]) return;
+  S.rooms[locId] = 'loading';
+  try { S.rooms[locId] = (await call('GET', '/docebo/classrooms?location_id=' + encodeURIComponent(locId))).items; } catch (e) { S.rooms[locId] = []; }
+  keepDrawerScroll(render);
+}
+
 function defaultCreate(ms, a) {
   const y = S.data.plan.year, mm = String(ms.month).padStart(2, '0');
   const n = Math.max(1, (+ms.planned_sessions || 1) - (a ? a.sched : 0));
@@ -827,7 +867,7 @@ function defaultCreate(ms, a) {
   return {
     mode: existing ? 'existing' : 'existing', course: existing ? { id: existing.course_id, name: existing.course_name || existing.name, type: 'classroom' } : null,
     q: '', courses: null, newName: p ? p.name : ms.title, tz: TZS.includes(tz) ? tz : 'Asia/Shanghai', url: BOOT.meetingUrl || '',
-    rows: Array.from({ length: n }, (_, i) => ({ date: `${y}-${mm}-${String(days[i % days.length]).padStart(2, '0')}`, start: '09:00', end: '17:00', seats })),
+    rows: Array.from({ length: n }, (_, i) => ({ date: `${y}-${mm}-${String(days[i % days.length]).padStart(2, '0')}`, start: '09:00', end: '17:00', seats, location_id: S.locs ? defaultVenue(ms) : undefined, classroom_id: '' })),
   };
 }
 
@@ -844,12 +884,23 @@ function createView(ms, a) {
       : c.courses ? (c.courses.length ? `<div class="plist">${c.courses.map((x, i) => `<button class="pitem" data-act="cr-pick" data-i="${i}"><span class="badge">ILT</span><span class="nm">${esc(x.name)}</span><span class="x">${esc(x.code)}</span></button>`).join('')}</div>` : `<div class="sync-meta">${esc(t('noResults'))}</div>`) : '';
     course = `<div class="full"><form class="row" id="crForm"><input type="search" name="q" placeholder="${esc(t('pickCourse'))}" value="${esc(c.q)}"><button class="btn" type="submit">${esc(t('searchBtn'))}</button></form>${list}</div>`;
   }
-  const rows = c.rows.map((r, i) => `<div class="srow">
+  const locs = S.locs;
+  const rows = c.rows.map((r, i) => {
+    const rooms = r.location_id && S.rooms ? S.rooms[r.location_id] : null;
+    const venueSel = locs === undefined || locs === null
+      ? `<span class="sync-meta"><span class="spin"></span></span>`
+      : `<select data-row="${i}" data-f="location_id" aria-label="${esc(t('venue'))}"><option value="" ${!r.location_id ? 'selected' : ''}>${esc(t('online'))}</option>${locs.map((l) => `<option value="${esc(l.id)}" ${String(r.location_id) === String(l.id) ? 'selected' : ''}>${esc(l.name)}${l.country ? ' · ' + esc(l.country) : ''}</option>`).join('')}</select>`;
+    const roomSel = r.location_id && Array.isArray(rooms) && rooms.length
+      ? `<select data-row="${i}" data-f="classroom_id" aria-label="${esc(t('classroom'))}"><option value="">${esc(t('anyRoom'))}</option>${rooms.map((x) => `<option value="${esc(x.id)}" ${String(r.classroom_id) === String(x.id) ? 'selected' : ''}>${esc(x.name)}${x.seats ? ' (' + x.seats + ')' : ''}</option>`).join('')}</select>` : '';
+    return `<div class="sblock"><div class="srow">
       <input type="date" data-row="${i}" data-f="date" value="${esc(r.date)}" aria-label="${esc(t('date'))}">
       <input type="time" data-row="${i}" data-f="start" value="${esc(r.start)}" aria-label="${esc(t('start'))}">
       <input type="time" data-row="${i}" data-f="end" value="${esc(r.end)}" aria-label="${esc(t('end'))}">
       <input type="number" min="1" data-row="${i}" data-f="seats" value="${esc(r.seats)}" aria-label="${esc(t('seats'))}">
-      <button class="btn ghost small" data-act="cr-delrow" data-i="${i}" aria-label="${esc(t('remove'))}" ${c.rows.length < 2 ? 'disabled' : ''}>✕</button></div>`).join('');
+      <button class="btn ghost small" data-act="cr-delrow" data-i="${i}" aria-label="${esc(t('remove'))}" ${c.rows.length < 2 ? 'disabled' : ''}>✕</button></div>
+      <div class="vrow"><span class="vl">📍</span>${venueSel}${roomSel}</div></div>`;
+  }).join('');
+  const anyOnline = c.rows.some((r) => !r.location_id);
   return `<div class="panel">
     <div class="panel-h">${esc(t('createT'))}</div>
     <div class="seg" role="group" style="margin-bottom:10px"><button data-act="cr-mode" data-v="existing" class="${c.mode !== 'new' ? 'on' : ''}">${esc(t('useExisting'))}</button><button data-act="cr-mode" data-v="new" class="${c.mode === 'new' ? 'on' : ''}">${esc(t('newCourse'))}</button></div>
@@ -857,11 +908,12 @@ function createView(ms, a) {
     <div class="sub-h" style="margin:14px 0 6px"><h4 style="font-size:13px">${esc(t('sessionsT'))}</h4><div class="spacer"></div><span class="sync-meta">${esc(t('date'))} · ${esc(t('start'))} · ${esc(t('end'))} · ${esc(t('seats'))}</span></div>
     ${rows}
     <button class="btn ghost small" data-act="cr-addrow">${esc(t('addRow'))}</button>
+    ${locs && !locs.length ? `<p class="sync-meta">${esc(t('noVenues'))}</p>` : ''}
     <div class="form" style="margin-top:10px">
       <label>${esc(t('timezone'))}<select data-c="tz">${TZS.map((z) => `<option ${z === c.tz ? 'selected' : ''}>${z}</option>`).join('')}</select></label>
-      <label>${esc(t('meeting'))}<input type="url" data-c="url" value="${esc(c.url)}" placeholder="https://teams.microsoft.com/..."></label>
+      ${anyOnline ? `<label>${esc(t('meeting'))}<input type="url" data-c="url" value="${esc(c.url)}" placeholder="https://teams.microsoft.com/..."></label>` : ''}
     </div>
-    <p class="sync-meta" style="white-space:normal;margin:6px 0 10px">${esc(t('meetingHint'))}</p>
+    ${anyOnline ? `<p class="sync-meta" style="white-space:normal;margin:6px 0 10px">${esc(t('meetingHint'))}</p>` : '<div style="height:10px"></div>'}
     <button class="btn primary" data-act="cr-go" ${S.busy || (c.mode !== 'new' && !c.course) ? 'disabled' : ''}>${esc(t('createGo', { n: c.rows.length }))}</button>
   </div>`;
 }
@@ -973,7 +1025,11 @@ document.addEventListener('input', (e) => {
   const el = e.target;
   if (!S.create) return;
   if (el.dataset.c) S.create[el.dataset.c] = el.value;
-  else if (el.dataset.row != null && el.dataset.f) S.create.rows[+el.dataset.row][el.dataset.f] = el.value;
+  else if (el.dataset.row != null && el.dataset.f) {
+    const row = S.create.rows[+el.dataset.row];
+    row[el.dataset.f] = el.value;
+    if (el.dataset.f === 'location_id') { row.classroom_id = ''; keepDrawerScroll(render); loadClassrooms(el.value); }
+  }
 });
 
 function keepDrawerScroll(fn) {
@@ -1098,18 +1154,24 @@ document.addEventListener('click', async (e) => {
       if (S.create) { S.create = null; keepDrawerScroll(render); break; }
       S.create = defaultCreate(S.drawer.ms, S.drawer.ms.id ? msActuals(S.drawer.ms) : null);
       keepDrawerScroll(render);
+      loadLocations().then(() => { for (const r of S.create ? S.create.rows : []) loadClassrooms(r.location_id); });
       if (!S.create.course) searchIlt('');
       break;
     }
     case 'cr-mode': S.create.mode = el.dataset.v; keepDrawerScroll(render); if (el.dataset.v === 'existing' && !S.create.course && !S.create.courses) searchIlt(''); break;
     case 'cr-pick': { const c = S.create.courses[+el.dataset.i]; S.create = { ...S.create, course: c }; keepDrawerScroll(render); break; }
     case 'cr-unpick': S.create = { ...S.create, course: null }; keepDrawerScroll(render); if (!S.create.courses) searchIlt(''); break;
-    case 'cr-addrow': { const last = S.create.rows[S.create.rows.length - 1]; S.create.rows.push({ ...last }); keepDrawerScroll(render); break; }
+    case 'cr-addrow': {
+      const last = S.create.rows[S.create.rows.length - 1];
+      const d0 = new Date(last.date + 'T00:00:00'); d0.setDate(d0.getDate() + 7);
+      const nd = d0.getMonth() + 1 === S.drawer.ms.month ? `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}` : last.date;
+      S.create.rows.push({ ...last, date: nd }); keepDrawerScroll(render); break;
+    }
     case 'cr-delrow': S.create.rows.splice(+el.dataset.i, 1); keepDrawerScroll(render); break;
     case 'cr-go': {
       const c = S.create, ms = S.drawer.ms;
       const body = {
-        sessions: c.rows.map((r) => ({ date: r.date, time_begin: r.start, time_end: r.end, max_enroll: +r.seats || 1, timezone: c.tz })),
+        sessions: c.rows.map((r) => ({ date: r.date, time_begin: r.start, time_end: r.end, max_enroll: +r.seats || 1, timezone: c.tz, location_id: r.location_id || null, classroom_id: r.classroom_id || null })),
         timezone: c.tz, meeting_url: c.url,
       };
       if (c.mode === 'new') body.new_course_name = c.newName; else { body.course_id = c.course.id; body.course_name = c.course.name; }

@@ -9,6 +9,8 @@ Breaks an annual training plan into programs and monthly execution milestones, l
 
 Cloudflare builds and deploys this repo on every push to `main`.
 
+Inside Docebo the planner opens in the user's own Docebo language (English or Chinese, from `GET /manage/v1/user/{id}`); outside Docebo (demo mode) it shows an EN / 中文 toggle.
+
 ## 1. Deploy (once)
 
 1. Cloudflare dashboard → **Workers & Pages → Create → Import a repository** → pick `docebo-training-plan-planner`. If it isn't listed, use **Connect GitHub** / the GitHub app settings to give Cloudflare access to this repo.
@@ -48,7 +50,7 @@ Docebo signs each load (`user_id`, `username`, `auth_code`, SHA-256 hash); the W
 
 In a milestone:
 - **Audience (to whom):** pick a Docebo audience (formerly group) or branch. The member count is stored and compared with planned trainees.
-- **Create sessions in Docebo:** use an existing ILT course or create a new one, then one session and event per row (date, times, seats). Docebo requires a venue or a webinar link on each event; venues are out of scope, so events use the meeting link given (default: `DEFAULT_MEETING_URL` in `wrangler.toml`, optional). New sessions are linked to the milestone automatically.
+- **Create sessions in Docebo:** use an existing ILT course or create a new one, then one session and event per row (date, times, seats, venue). Each row's venue comes from the Docebo locations (`GET /learn/v1/location`), with an optional classroom; the default venue matches the milestone's region. A row set to Online uses the meeting link instead (default: `DEFAULT_MEETING_URL`, optional). New sessions are linked to the milestone automatically.
 - **Enrol the audience:** preview, then confirm. Members are split evenly across the milestone's ILT sessions (a course link gets everyone), via `POST /learn/v1/enrollment/batch` (300 per call). Running it again reports people as already enrolled.
 
 API calls used (confirmed from the atalent-025-elevate02 API definition): `GET /audiences/v1/audience`, `GET /audiences/v1/audience/{uuid}/users`, `GET /manage/v1/orgchart`, `GET /manage/v1/orgchart/{id}/users`, `POST /learn/v1/courses`, `POST /course/v1/courses/{id}/sessions`, `POST /course/v1/sessions/{id}/events`, `POST /learn/v1/enrollment/batch`.
