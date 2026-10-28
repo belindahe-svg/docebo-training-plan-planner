@@ -24,7 +24,7 @@ crons = ["0 18 * * *"]
 # Secrets (DOCEBO_CLIENT_ID, DOCEBO_CLIENT_SECRET, DOCEBO_USERNAME,
 # DOCEBO_PASSWORD, SALT_SECRET, APP_SECRET) go in the dashboard as Secrets.
 [vars]
-DEMO_MODE = "1"
-DOCEBO_DOMAIN = "atalentdemo2.docebosaas.com"
+DEMO_MODE = "0"
+DOCEBO_DOMAIN = "atalent-025-elevate02.docebosaas.com"
 SYNC_BUDGET = "45"
 ALLOWED_USER_IDS = ""

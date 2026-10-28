@@ -31,7 +31,7 @@ Plain settings live in `wrangler.toml` (edit on GitHub; each push redeploys):
 | Name | Meaning |
 |---|---|
 | `DEMO_MODE` | `"1"` = built-in construction machinery catalog, no Docebo calls, opens outside Docebo too. `"0"` = live Docebo data. |
-| `DOCEBO_DOMAIN` | e.g. `atalentdemo2.docebosaas.com` |
+| `DOCEBO_DOMAIN` | e.g. `atalent-025-elevate02.docebosaas.com` |
 | `SYNC_BUDGET` | max Docebo calls per sync run. `45` on Workers Free (50 subrequest limit); `400` on Workers Paid. |
 | `ALLOWED_USER_IDS` | optional comma list of Docebo user IDs allowed in; empty = anyone who can see the Docebo page |
 
